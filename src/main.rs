@@ -1,7 +1,7 @@
 mod instruction;
 
 fn main() -> Result<(), std::io::Error> {
-    let buffer = std::fs::read("../../invaders.h")?;
+    let buffer = std::fs::read("../roms/invaders.h")?;
     
     let mut pc = 0;
     while pc < buffer.len() {
