@@ -1,84 +1,13 @@
 use std::fmt;
 
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
-#[derive(Debug)]
+//
+// EACH OPERATION ADDED HERE WILL NEED TO BE ADDED TO THE MATCH IN THE CORRESPONDING
+// fmt FUNCTION. 
 enum Operation {
-    STC,
-    CMC,
-    INR,
-    DCR,
-    CMA,
-    DAA,
-    MOV,
-    STAX,
-    LDAX,
     NOP,
-    ADD,
-    ADC,
-    SUB,
-    SBB,
-    ANA,
-    XRA,
-    ORA,
-    CMP,
-    RLC,
-    RRC,
-    RAL,
-    RAR,
-    PUSH,
-    POP,
-    DAD,
-    INX,
-    DCX,
-    XCHG,
-    XTHL,
-    SPHL,
-    LXI,
-    MVI,
-    ADI,
-    ACI,
-    SUI,
-    SBI,
-    ANI,
-    XRI,
-    ORI,
-    CPI,
-    STA,
-    LDA,
-    SHLD,
-    LHLD,
-    PCHL,
-    JMP,
-    JC,
-    JNC,
-    JZ,
-    JNZ,
-    JM,
-    JP,
-    JPE,
-    JPO,
-    CALL,
-    CC,
-    CNC,
-    CZ,
-    CNZ,
-    CM,
-    CP,
-    CPE,
-    CPO,
-    RET,
-    RN,
-    RNC,
-    RZ,
-    RNZ,
-    RM,
-    RP,
-    RPE,
-    RPO,
-    EI,
-    DI,
-    IN,
-    OUT
+    JMP(Operand),
+    PUSH(Operand),
 }
 
 #[derive(Debug)]
@@ -89,18 +18,20 @@ enum Register {
     D,
     E,
     H,
-    L
+    L,
+    PSW
 }
 
-#[derive(Debug)]
 enum Operand {
-    Reg(Register)
+    Reg(Register),
+    A8(u8),
+    A16(u16),
+    D8(u8),
+    D16(u16)
 }
 
 pub struct Instruction {
     op: Operation,
-    target: Option<Operand>,
-    source: Option<Operand>,
     size: u8,
     cycles: u8
 }
@@ -112,45 +43,33 @@ impl Instruction {
         let instruction = match opcode {
             0x00 => Instruction {
                 op: Operation::NOP,
-                target: None,
-                source: None,
                 size: 1,
                 cycles: 4
             },
-            0x01 => Instruction {
-                op: Operation::LXI,
-                target: Some(Operand::Reg(Register::B)),
-                source: None,  // TODO
+            0xc3 => Instruction {
+                op: Operation::JMP(Operand::A16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
             },
-            0x3E => Instruction {
-                op: Operation::MVI,
-                target: Some(Operand::Reg(Register::A)),
-                source: None,  // TODO
+            0xf5 => Instruction {
+                op: Operation::PUSH(Operand::Reg(Register::PSW)),
                 size: 3,
                 cycles: 10
-            },
-            0xC3 => Instruction {
-                op: Operation::JMP,
-                target: None, // TODO 
-                source: None, // TODO
-                size: 3,
-                cycles: 10
-            },
-            0xC5 => Instruction {
-                op: Operation::PUSH,
-                target: None, // TODO 
-                source: None, // TODO
-                size: 1,
-                cycles: 11
             },
             _ => unimplemented!("instruction {:#x?} has not yet been implemented", opcode)
         };
 
         Ok(instruction)
     }
-    
+
+    fn read_imm8(bytes: &[u8]) -> u8 {
+        u8::from_le_bytes([bytes[1]])
+    }
+
+    fn read_imm16(bytes: &[u8]) -> u16 {
+        u16::from_le_bytes([bytes[1], bytes[2]])
+    }
+
     pub fn size(&self) -> u8 {
         self.size
     }
@@ -166,19 +85,31 @@ impl From<&[u8]> for Instruction {
     }
 }
 
+impl fmt::Debug for Operation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Operation::NOP => write!(f, "NOP"),
+            Operation::PUSH(val) => write!(f, "PUSH {:#x?}", val),
+            Operation::JMP(val) => write!(f, "JMP {:#x?}", val),
+            _ => write!(f, "{:?}", self)
+        }
+    }
+}
+
+impl fmt::Debug for Operand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Operand::A8(val) | Operand::D8(val) => write!(f, "{:#x?}", val),
+            Operand::A16(val) | Operand::D16(val) => write!(f, "{:#x?}", val),
+            Operand::Reg(val) => write!(f, "{:x?}", val),
+            _ => write!(f, "Debug printing is not implemented for {:#x?}", self)
+        }
+    }
+}
+
 impl fmt::Debug for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "{:?}", self.op);
-
-        if let Some(target) = &self.target {
-            write!(f, " {:?}", target)?;
-        }
-
-        if let Some(source) = &self.source {
-            write!(f, " {:?}", source)?;
-        }
-        
-        res
+        return write!(f, "{:?}", self.op);
     }
 }
 
