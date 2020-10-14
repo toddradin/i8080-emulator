@@ -98,9 +98,9 @@ enum Operand {
 }
 
 pub struct Instruction {
-    operation: Operation,
-    lhs: Option<Operand>,
-    rhs: Option<Operand>,
+    op: Operation,
+    target: Option<Operand>,
+    source: Option<Operand>,
     size: u8,
     cycles: u8
 }
@@ -111,41 +111,41 @@ impl Instruction {
 
         let instruction = match opcode {
             0x00 => Instruction {
-                operation: Operation::NOP,
-                lhs: None,
-                rhs: None,
+                op: Operation::NOP,
+                target: None,
+                source: None,
                 size: 1,
                 cycles: 4
             },
             0x01 => Instruction {
-                operation: Operation::LXI,
-                lhs: Some(Operand::Reg(Register::B)),
-                rhs: None,  // TODO
+                op: Operation::LXI,
+                target: Some(Operand::Reg(Register::B)),
+                source: None,  // TODO
                 size: 3,
                 cycles: 10
             },
             0x3E => Instruction {
-                operation: Operation::MVI,
-                lhs: Some(Operand::Reg(Register::A)),
-                rhs: None,  // TODO
+                op: Operation::MVI,
+                target: Some(Operand::Reg(Register::A)),
+                source: None,  // TODO
                 size: 3,
                 cycles: 10
             },
             0xC3 => Instruction {
-                operation: Operation::JMP,
-                lhs: None, // TODO 
-                rhs: None, // TODO
+                op: Operation::JMP,
+                target: None, // TODO 
+                source: None, // TODO
                 size: 3,
                 cycles: 10
             },
             0xC5 => Instruction {
-                operation: Operation::PUSH,
-                lhs: None, // TODO 
-                rhs: None, // TODO
+                op: Operation::PUSH,
+                target: None, // TODO 
+                source: None, // TODO
                 size: 1,
                 cycles: 11
             },
-            _ => unimplemented!("instruction {:#x?} has not yet been implimented", opcode)
+            _ => unimplemented!("instruction {:#x?} has not yet been implemented", opcode)
         };
 
         Ok(instruction)
@@ -168,14 +168,14 @@ impl From<&[u8]> for Instruction {
 
 impl fmt::Debug for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "{:?}", self.operation);
+        let res = write!(f, "{:?}", self.op);
 
-        if let Some(lhs) = &self.lhs {
-            write!(f, " {:?}", lhs)?;
+        if let Some(target) = &self.target {
+            write!(f, " {:?}", target)?;
         }
 
-        if let Some(rhs) = &self.rhs {
-            write!(f, " {:?}", rhs)?;
+        if let Some(source) = &self.source {
+            write!(f, " {:?}", source)?;
         }
         
         res
