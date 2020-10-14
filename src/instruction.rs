@@ -7,7 +7,9 @@ use std::fmt;
 enum Operation {
     NOP,
     JMP(Operand),
-    PUSH(Operand),
+    PUSH(Register),
+    MVI(Operand, Register),
+    STA(Operand)
 }
 
 #[derive(Debug)]
@@ -23,8 +25,6 @@ enum Register {
 }
 
 enum Operand {
-    Reg(Register),
-    A8(u8),
     A16(u16),
     D8(u8),
     D16(u16)
@@ -46,15 +46,40 @@ impl Instruction {
                 size: 1,
                 cycles: 4
             },
+            0x32 => Instruction {
+                op: Operation::STA(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 13
+            },
+            0x3e => Instruction {
+                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::A),
+                size: 2,
+                cycles: 7
+            },
             0xc3 => Instruction {
                 op: Operation::JMP(Operand::A16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
             },
+            0xc5 => Instruction {
+                op: Operation::PUSH(Register::B),
+                size: 1,
+                cycles: 11
+            },
+            0xd5 => Instruction {
+                op: Operation::PUSH(Register::D),
+                size: 1,
+                cycles: 11
+            },
+            0xe5 => Instruction {
+                op: Operation::PUSH(Register::H),
+                size: 1,
+                cycles: 11
+            },
             0xf5 => Instruction {
-                op: Operation::PUSH(Operand::Reg(Register::PSW)),
-                size: 3,
-                cycles: 10
+                op: Operation::PUSH(Register::PSW),
+                size: 1,
+                cycles: 11
             },
             _ => unimplemented!("instruction {:#x?} has not yet been implemented", opcode)
         };
@@ -91,7 +116,9 @@ impl fmt::Debug for Operation {
             Operation::NOP => write!(f, "NOP"),
             Operation::PUSH(val) => write!(f, "PUSH {:#x?}", val),
             Operation::JMP(val) => write!(f, "JMP {:#x?}", val),
-            _ => write!(f, "{:?}", self)
+            Operation::MVI(from, to) => write!(f, "MVI {:#x?}, {:#x?}", to, from),
+            Operation::STA(val) => write!(f, "STA {:#x?}", val),
+            _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
         }
     }
 }
@@ -99,9 +126,8 @@ impl fmt::Debug for Operation {
 impl fmt::Debug for Operand {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Operand::A8(val) | Operand::D8(val) => write!(f, "{:#x?}", val),
+            Operand::D8(val) => write!(f, "{:#x?}", val),
             Operand::A16(val) | Operand::D16(val) => write!(f, "{:#x?}", val),
-            Operand::Reg(val) => write!(f, "{:x?}", val),
             _ => write!(f, "Debug printing is not implemented for {:#x?}", self)
         }
     }
