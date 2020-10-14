@@ -2,7 +2,7 @@ use std::fmt;
 
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
 #[derive(Debug)]
-enum Mnemonic {
+enum Operation {
     STC,
     CMC,
     INR,
@@ -98,7 +98,7 @@ enum Operand {
 }
 
 pub struct Instruction {
-    mnemonic: Mnemonic,
+    operation: Operation,
     lhs: Option<Operand>,
     rhs: Option<Operand>,
     size: u8,
@@ -106,40 +106,40 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    fn decode(bytes: &[u8]) -> Result<Instruction, ()> {
+    fn decode_op(bytes: &[u8]) -> Result<Instruction, ()> {
         let opcode = bytes[0];
 
         let instruction = match opcode {
             0x00 => Instruction {
-                mnemonic: Mnemonic::NOP,
+                operation: Operation::NOP,
                 lhs: None,
                 rhs: None,
                 size: 1,
                 cycles: 4
             },
             0x01 => Instruction {
-                mnemonic: Mnemonic::LXI,
+                operation: Operation::LXI,
                 lhs: Some(Operand::Reg(Register::B)),
                 rhs: None,  // TODO
                 size: 3,
                 cycles: 10
             },
             0x3E => Instruction {
-                mnemonic: Mnemonic::MVI,
+                operation: Operation::MVI,
                 lhs: Some(Operand::Reg(Register::A)),
                 rhs: None,  // TODO
                 size: 3,
                 cycles: 10
             },
             0xC3 => Instruction {
-                mnemonic: Mnemonic::JMP,
+                operation: Operation::JMP,
                 lhs: None, // TODO 
                 rhs: None, // TODO
                 size: 3,
                 cycles: 10
             },
             0xC5 => Instruction {
-                mnemonic: Mnemonic::PUSH,
+                operation: Operation::PUSH,
                 lhs: None, // TODO 
                 rhs: None, // TODO
                 size: 1,
@@ -162,13 +162,13 @@ impl Instruction {
 
 impl From<&[u8]> for Instruction {
     fn from(bytes: &[u8]) -> Instruction {
-        Instruction::decode(bytes).unwrap()
+        Instruction::decode_op(bytes).unwrap()
     }
 }
 
 impl fmt::Debug for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let res = write!(f, "{:?}", self.mnemonic);
+        let res = write!(f, "{:?}", self.operation);
 
         if let Some(lhs) = &self.lhs {
             write!(f, " {:?}", lhs)?;
