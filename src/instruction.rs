@@ -114,10 +114,10 @@ impl fmt::Debug for Operation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Operation::NOP => write!(f, "NOP"),
-            Operation::PUSH(val) => write!(f, "PUSH {:#x?}", val),
-            Operation::JMP(val) => write!(f, "JMP {:#x?}", val),
-            Operation::MVI(lhs, rhs) => write!(f, "MVI {:#x?}, {:#x?}", lhs, rhs),
-            Operation::STA(val) => write!(f, "STA {:#x?}", val),
+            Operation::PUSH(val) => write!(f, "PUSH\t{:#x?}", val),
+            Operation::JMP(val) => write!(f, "JMP\t{:#x?}", val),
+            Operation::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
+            Operation::STA(val) => write!(f, "STA\t{:#x?}", val),
             _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
         }
     }
