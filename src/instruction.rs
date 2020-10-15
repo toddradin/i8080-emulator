@@ -8,9 +8,9 @@ enum Operation {
     NOP,
     JMP(Operand),
     PUSH(Register),
-    MVI(Operand, Register),
+    MVI(Register, Operand), //FIX ME
     STA(Operand),
-    LXI(Operand, Register), //start here
+    LXI(Register, Operand), // FIX ME
     STAX(Register),
     INX(Register),
     INR(Register),
@@ -71,7 +71,7 @@ impl Instruction {
                 cycles: 4
             },
             0x01 => Instruction {
-                op: Operation::LXI(Operand::D16(Instruction::read_imm16(bytes)), Register::B),
+                op: Operation::LXI(Register::B, Operand::D16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
             },
@@ -96,7 +96,7 @@ impl Instruction {
                 cycles: 5
             },
             0x06 => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::B),
+                op: Operation::MVI(Register::B, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -131,7 +131,7 @@ impl Instruction {
                 cycles: 5
             },
             0x0e => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::C),
+                op: Operation::MVI(Register::C, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -141,7 +141,7 @@ impl Instruction {
                 cycles: 4
             },
             0x11 => Instruction {
-                op: Operation::LXI(Operand::D16(Instruction::read_imm16(bytes)), Register::D),
+                op: Operation::LXI(Register::D, Operand::D16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
             },
@@ -166,7 +166,7 @@ impl Instruction {
                 cycles: 5
             },
             0x16 => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::D),
+                op: Operation::MVI(Register::D, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -201,7 +201,7 @@ impl Instruction {
                 cycles: 5
             },
             0x1e => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::E),
+                op: Operation::MVI(Register::E, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -211,7 +211,7 @@ impl Instruction {
                 cycles: 4
             },
             0x21 => Instruction {
-                op: Operation::LXI(Operand::D16(Instruction::read_imm16(bytes)), Register::H),
+                op: Operation::LXI(Register::H, Operand::D16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
             },
@@ -236,7 +236,7 @@ impl Instruction {
                 cycles: 5
             },
             0x26 => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::H),
+                op: Operation::MVI(Register::H, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -271,7 +271,7 @@ impl Instruction {
                 cycles: 5
             },
             0x2e => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::L),
+                op: Operation::MVI(Register::L, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -281,7 +281,7 @@ impl Instruction {
                 cycles: 4
             },
             0x31 => Instruction {
-                op: Operation::LXI(Operand::D16(Instruction::read_imm16(bytes)), Register::SP),
+                op: Operation::LXI(Register::SP, Operand::D16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
             },
@@ -306,7 +306,7 @@ impl Instruction {
                 cycles: 10
             },
             0x36 => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::M),
+                op: Operation::MVI(Register::M, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 10
             },
@@ -341,7 +341,7 @@ impl Instruction {
                 cycles: 5
             },
             0x3e => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::A),
+                op: Operation::MVI(Register::A, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -575,9 +575,9 @@ impl fmt::Debug for Operation {
             Operation::NOP => write!(f, "NOP"),
             Operation::PUSH(val) => write!(f, "PUSH {:#x?}", val),
             Operation::JMP(val) => write!(f, "JMP {:#x?}", val),
-            Operation::MVI(from, to) => write!(f, "MVI {:#x?}, {:#x?}", to, from),
+            Operation::MVI(to, from) => write!(f, "MVI {:#x?}, {:#x?}", to, from),
             Operation::STA(val) => write!(f, "STA {:#x?}", val),
-            Operation::LXI(from, to) => write!(f, "LXI {:#x?}, {:#x?}", to, from), 
+            Operation::LXI(to, from) => write!(f, "LXI {:#x?}, {:#x?}", to, from), 
             Operation::STAX(val) => write!(f, "STAX {:#x?}", val),
             Operation::INX(val) => write!(f, "INX {:#x?}", val),
             Operation::INR(val) => write!(f, "INR {:#x?}", val),
