@@ -30,7 +30,6 @@ enum Operation {
     LDA(Operand),
     CMC,
     MOV(Register, Register)
-
 }
 
 #[derive(Debug)]
@@ -573,32 +572,30 @@ impl fmt::Debug for Operation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Operation::NOP => write!(f, "NOP"),
-            Operation::PUSH(val) => write!(f, "PUSH {:#x?}", val),
-            Operation::JMP(val) => write!(f, "JMP {:#x?}", val),
-            Operation::MVI(to, from) => write!(f, "MVI {:#x?}, {:#x?}", to, from),
-            Operation::STA(val) => write!(f, "STA {:#x?}", val),
-            Operation::LXI(to, from) => write!(f, "LXI {:#x?}, {:#x?}", to, from), 
-            Operation::STAX(val) => write!(f, "STAX {:#x?}", val),
-            Operation::INX(val) => write!(f, "INX {:#x?}", val),
-            Operation::INR(val) => write!(f, "INR {:#x?}", val),
-            Operation::DCR(val) => write!(f, "DCR {:#x?}", val),
+            Operation::PUSH(val) => write!(f, "PUSH\t{:#x?}", val),
+            Operation::JMP(val) => write!(f, "JMP\t{:#x?}", val),
+            Operation::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
+            Operation::STA(val) => write!(f, "STA\t{:#x?}", val),
+            Operation::LXI(lhs, rhs) => write!(f, "LXI\t{:#x?}, {:#x?}", lhs, rhs), 
+            Operation::STAX(val) => write!(f, "STAX\t{:#x?}", val),
+            Operation::INX(val) => write!(f, "INX\t{:#x?}", val),
+            Operation::INR(val) => write!(f, "INR\t{:#x?}", val),
+            Operation::DCR(val) => write!(f, "DCR\t{:#x?}", val),
             Operation::RLC => write!(f, "RLC"),
-            Operation::DAD(val) => write!(f, "DAD {:#x?}", val),
-            Operation::LDAX(val) => write!(f, "LDAX {:#x?}", val), 
-            Operation::DCX(val) => write!(f, "DCX {:#x?}", val), 
+            Operation::DAD(val) => write!(f, "DAD\t{:#x?}", val),
+            Operation::LDAX(val) => write!(f, "LDAX\t{:#x?}", val), 
+            Operation::DCX(val) => write!(f, "DCX\t{:#x?}", val), 
             Operation::RRC => write!(f, "RLC"),
             Operation::RAL => write!(f, "RLC"), 
             Operation::RAR => write!(f, "RLC"),
-            Operation::SHLD(val) => write!(f, "SHLD {:#x?}", val),
+            Operation::SHLD(val) => write!(f, "SHLD\t{:#x?}", val),
             Operation::DAA => write!(f, "RLC"), 
-            Operation::LHLD(val) => write!(f, "LHLD {:#x?}", val),
+            Operation::LHLD(val) => write!(f, "LHLD\t{:#x?}", val),
             Operation::CMA => write!(f, "RLC"), 
             Operation::STC => write!(f, "RLC"),
-            Operation::LDA(val) => write!(f, "LDA {:#x?}", val),
+            Operation::LDA(val) => write!(f, "LDA\t{:#x?}", val),
             Operation::CMC => write!(f, "RLC"),
-            Operation::MOV(to, from) => write!(f, "MOV {:#x?}, {:#x?}", to, from),
-
-
+            Operation::MOV(lhs, rhs) => write!(f, "MOV\t{:#x?}, {:#x?}", lhs, rhs),
             _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
         }
     }
