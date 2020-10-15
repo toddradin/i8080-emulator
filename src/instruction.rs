@@ -29,7 +29,14 @@ enum Operation {
     STC,
     LDA(Operand),
     CMC,
-    MOV(Register, Register)
+    MOV(Register, Register),
+    HLT,
+    ADD(Register),
+    ANA(Register),
+    ADC(Register),
+    SUB(Register),
+    SBB(Register),
+    XRA(Register)
 }
 
 #[derive(Debug)]
@@ -510,7 +517,406 @@ impl Instruction {
                 size: 1,
                 cycles: 5
             },
-
+            0x60 =>Instruction {
+                op: Operation::MOV(Register::H, Register::B),
+                size: 1,
+                cycles: 5
+            },
+            0x61 =>Instruction {
+                op: Operation::MOV(Register::H, Register::C),
+                size: 1,
+                cycles: 5
+            },
+            0x62 =>Instruction {
+                op: Operation::MOV(Register::H, Register::D),
+                size: 1,
+                cycles: 5
+            },
+            0x63 =>Instruction {
+                op: Operation::MOV(Register::H, Register::E),
+                size: 1,
+                cycles: 5
+            },
+            0x64 =>Instruction {
+                op: Operation::MOV(Register::H, Register::H),
+                size: 1,
+                cycles: 5
+            },
+            0x65 =>Instruction {
+                op: Operation::MOV(Register::H, Register::L),
+                size: 1,
+                cycles: 5
+            },
+            0x66 =>Instruction {
+                op: Operation::MOV(Register::H, Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x67 =>Instruction {
+                op: Operation::MOV(Register::H, Register::A),
+                size: 1,
+                cycles: 5
+            },
+            0x68 =>Instruction {
+                op: Operation::MOV(Register::L, Register::B),
+                size: 1,
+                cycles: 5
+            },
+            0x69 =>Instruction {
+                op: Operation::MOV(Register::L, Register::C),
+                size: 1,
+                cycles: 5
+            },
+            0x6a =>Instruction {
+                op: Operation::MOV(Register::L, Register::D),
+                size: 1,
+                cycles: 5
+            },
+            0x6b =>Instruction {
+                op: Operation::MOV(Register::L, Register::E),
+                size: 1,
+                cycles: 5
+            },
+            0x6c =>Instruction {
+                op: Operation::MOV(Register::L, Register::H),
+                size: 1,
+                cycles: 5
+            },
+            0x6d =>Instruction {
+                op: Operation::MOV(Register::L, Register::L),
+                size: 1,
+                cycles: 5
+            },
+            0x6e =>Instruction {
+                op: Operation::MOV(Register::L, Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x6f =>Instruction {
+                op: Operation::MOV(Register::L, Register::A),
+                size: 1,
+                cycles: 5
+            },
+            0x70 =>Instruction {
+                op: Operation::MOV(Register::M, Register::B),
+                size: 1,
+                cycles: 7
+            },
+            0x71 =>Instruction {
+                op: Operation::MOV(Register::M, Register::C),
+                size: 1,
+                cycles: 7
+            },
+            0x72 =>Instruction {
+                op: Operation::MOV(Register::M, Register::D),
+                size: 1,
+                cycles: 7
+            },
+            0x73 =>Instruction {
+                op: Operation::MOV(Register::M, Register::E),
+                size: 1,
+                cycles: 7
+            },
+            0x74 =>Instruction {
+                op: Operation::MOV(Register::M, Register::H),
+                size: 1,
+                cycles: 7
+            },
+            0x75 =>Instruction {
+                op: Operation::MOV(Register::M, Register::L),
+                size: 1,
+                cycles: 7
+            },
+            0x76 =>Instruction {
+                op: Operation::HLT,
+                size: 1,
+                cycles: 7
+            },
+            0x77 =>Instruction {
+                op: Operation::MOV(Register::M, Register::A),
+                size: 1,
+                cycles: 7
+            },
+            0x78 =>Instruction {
+                op: Operation::MOV(Register::A, Register::B),
+                size: 1,
+                cycles: 5
+            },
+            0x79 =>Instruction {
+                op: Operation::MOV(Register::A, Register::C),
+                size: 1,
+                cycles: 5
+            },
+            0x7a =>Instruction {
+                op: Operation::MOV(Register::A, Register::D),
+                size: 1,
+                cycles: 5
+            },
+            0x7b =>Instruction {
+                op: Operation::MOV(Register::A, Register::E),
+                size: 1,
+                cycles: 5
+            },
+            0x7c =>Instruction {
+                op: Operation::MOV(Register::A, Register::H),
+                size: 1,
+                cycles: 5
+            },
+            0x7d =>Instruction {
+                op: Operation::MOV(Register::A, Register::L),
+                size: 1,
+                cycles: 5
+            },
+            0x7e =>Instruction {
+                op: Operation::MOV(Register::A, Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x7f =>Instruction {
+                op: Operation::MOV(Register::A, Register::A),
+                size: 1,
+                cycles: 5
+            },
+            0x80 =>Instruction {
+                op: Operation::ADD(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0x81 =>Instruction {
+                op: Operation::ADD(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0x82 =>Instruction {
+                op: Operation::ADD(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0x83 =>Instruction {
+                op: Operation::ADD(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0x84 =>Instruction {
+                op: Operation::ADD(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0x85 =>Instruction {
+                op: Operation::ADD(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0x86 =>Instruction {
+                op: Operation::ADD(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x87 =>Instruction {
+                op: Operation::ADD(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            0x88 =>Instruction {
+                op: Operation::ADC(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0x89 =>Instruction {
+                op: Operation::ADC(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0x8a =>Instruction {
+                op: Operation::ADC(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0x8b =>Instruction {
+                op: Operation::ADC(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0x8c =>Instruction {
+                op: Operation::ADC(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0x8d =>Instruction {
+                op: Operation::ADC(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0x8e =>Instruction {
+                op: Operation::ADC(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x8f =>Instruction {
+                op: Operation::ADC(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            0x90 =>Instruction {
+                op: Operation::SUB(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0x91 =>Instruction {
+                op: Operation::SUB(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0x92 =>Instruction {
+                op: Operation::SUB(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0x93 =>Instruction {
+                op: Operation::SUB(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0x94 =>Instruction {
+                op: Operation::SUB(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0x95 =>Instruction {
+                op: Operation::SUB(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0x96 =>Instruction {
+                op: Operation::SUB(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x97 =>Instruction {
+                op: Operation::SUB(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            0x98 =>Instruction {
+                op: Operation::SBB(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0x99 =>Instruction {
+                op: Operation::SBB(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0x9a =>Instruction {
+                op: Operation::SBB(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0x9b =>Instruction {
+                op: Operation::SBB(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0x9c =>Instruction {
+                op: Operation::SBB(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0x9d =>Instruction {
+                op: Operation::SBB(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0x9e =>Instruction {
+                op: Operation::SBB(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0x9f =>Instruction {
+                op: Operation::SBB(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            0xa0 =>Instruction {
+                op: Operation::ANA(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0xa1 =>Instruction {
+                op: Operation::ANA(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0xa2 =>Instruction {
+                op: Operation::ANA(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0xa3 =>Instruction {
+                op: Operation::ANA(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0xa4 =>Instruction {
+                op: Operation::ANA(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0xa5 =>Instruction {
+                op: Operation::ANA(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0xa6 =>Instruction {
+                op: Operation::ANA(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0xa7 =>Instruction {
+                op: Operation::ANA(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            0xa8 =>Instruction {
+                op: Operation::XRA(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0xa9 =>Instruction {
+                op: Operation::ANA(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0xaa =>Instruction {
+                op: Operation::ANA(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0xab =>Instruction {
+                op: Operation::ANA(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0xac =>Instruction {
+                op: Operation::ANA(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0xad =>Instruction {
+                op: Operation::ANA(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0xae =>Instruction {
+                op: Operation::ANA(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0xaf =>Instruction {
+                op: Operation::ANA(Register::A),
+                size: 1,
+                cycles: 4
+            },
 
 
 
@@ -596,6 +1002,13 @@ impl fmt::Debug for Operation {
             Operation::LDA(val) => write!(f, "LDA\t{:#x?}", val),
             Operation::CMC => write!(f, "RLC"),
             Operation::MOV(lhs, rhs) => write!(f, "MOV\t{:#x?}, {:#x?}", lhs, rhs),
+            Operation::HLT => write!(f, "HLT"), 
+            Operation::ADD(val) => write!(f, "ADD\t{:#x?}", val),
+            Operation::ANA(val) => write!(f, "ANA\t{:#x?}", val),
+            Operation::ADC(val) => write!(f, "ADC\t{:#x?}", val),
+            Operation::SUB(val) => write!(f, "SUB\t{:#x?}", val),
+            Operation::SBB(val) => write!(f, "SBB\t{:#x?}", val),
+            Operation::XRA(val) => write!(f, "XRA\t{:#x?}", val),
             _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
         }
     }
