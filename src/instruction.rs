@@ -116,7 +116,7 @@ impl fmt::Debug for Operation {
             Operation::NOP => write!(f, "NOP"),
             Operation::PUSH(val) => write!(f, "PUSH\t{:#x?}", val),
             Operation::JMP(val) => write!(f, "JMP\t{:#x?}", val),
-            Operation::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
+            Operation::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?},{:#x?}", lhs, rhs),
             Operation::STA(val) => write!(f, "STA\t{:#x?}", val),
             _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
         }
