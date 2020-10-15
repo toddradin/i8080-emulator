@@ -8,7 +8,7 @@ enum Operation {
     NOP,
     JMP(Operand),
     PUSH(Register),
-    MVI(Operand, Register),
+    MVI(Register, Operand),
     STA(Operand)
 }
 
@@ -52,7 +52,7 @@ impl Instruction {
                 cycles: 13
             },
             0x3e => Instruction {
-                op: Operation::MVI(Operand::D8(Instruction::read_imm8(bytes)), Register::A),
+                op: Operation::MVI(Register::A, Operand::D8(Instruction::read_imm8(bytes))),
                 size: 2,
                 cycles: 7
             },
@@ -116,7 +116,7 @@ impl fmt::Debug for Operation {
             Operation::NOP => write!(f, "NOP"),
             Operation::PUSH(val) => write!(f, "PUSH {:#x?}", val),
             Operation::JMP(val) => write!(f, "JMP {:#x?}", val),
-            Operation::MVI(from, to) => write!(f, "MVI {:#x?}, {:#x?}", to, from),
+            Operation::MVI(lhs, rhs) => write!(f, "MVI {:#x?}, {:#x?}", lhs, rhs),
             Operation::STA(val) => write!(f, "STA {:#x?}", val),
             _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
         }
