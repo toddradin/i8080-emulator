@@ -511,31 +511,407 @@ impl Instruction {
                 cycles: 5
             },
 
-
-
-
+            //0xb0 through 0xff - DS
+            0xb0 => Instruction {
+                op: Operation::ORA(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0xb1 => Instruction {
+                op: Operation::ORA(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0xb2 => Instruction {
+                op: Operation::ORA(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0xb3 => Instruction {
+                op: Operation::ORA(Register::E),
+                size: 1,
+                cycles: 4
+            }
+            0xb4 => Instruction {
+                op: Operation::ORA(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0xb5 => Instruction {
+                op: Operation::ORA(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0xb6 => Instruction {
+                op: Operation::ORA(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0xb7 => Instruction {
+                op: Operation::ORA(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            0xb8 => Instruction {
+                op: Operation::CMP(Register::B),
+                size: 1,
+                cycles: 4
+            },
+            0xb9 => Instruction {
+                op: Operation::CMP(Register::C),
+                size: 1,
+                cycles: 4
+            },
+            0xba => Instruction {
+                op: Operation::CMP(Register::D),
+                size: 1,
+                cycles: 4
+            },
+            0xbb => Instruction {
+                op: Operation::CMP(Register::E),
+                size: 1,
+                cycles: 4
+            },
+            0xbc => Instruction {
+                op: Operation::CMP(Register::H),
+                size: 1,
+                cycles: 4
+            },
+            0xbd => Instruction {
+                op: Operation::CMP(Register::L),
+                size: 1,
+                cycles: 4
+            },
+            0xbe => Instruction {
+                op: Operation::CMP(Register::M),
+                size: 1,
+                cycles: 7
+            },
+            0xbf => Instruction {
+                op: Operation::CMP(Register::A),
+                size: 1,
+                cycles: 4
+            },
+            //note: listed both cycle numbers (action taken/action not-taken) 
+            //next to cycles where applicable.
+            //https://pastraiser.com/cpu/i8080/i8080_opcodes.html
+            0xc0 => Instruction {
+                op: Operation::RNZ,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xc1 => Instruction {
+                op: Operation::POP(Register::B),
+                size: 1,
+                cycles: 10
+            },
+            0xc2 => Instruction {
+                op: Operation::JNZ(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
             0xc3 => Instruction {
                 op: Operation::JMP(Operand::A16(Instruction::read_imm16(bytes))),
                 size: 3,
                 cycles: 10
+            },
+            0xc4 => Instruction {
+                op: Operation::CNZ(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
             },
             0xc5 => Instruction {
                 op: Operation::PUSH(Register::B),
                 size: 1,
                 cycles: 11
             },
+            0xc6 => Instruction {
+                op: Operation::ADI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xc7 => Instruction {
+                op: Operation::RST(Operand::D8(0x00)),
+                size: 1,
+                cycles: 11
+            },
+            0xc8 => Instruction {
+                op: Operation::RZ,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xc9 => Instruction {
+                op: Operation::RET,
+                size: 1,
+                cycles: 10
+            },
+            0xca => Instruction {
+                op: Operation::JZ(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xcb => Instruction {
+                op: Operation::JMP(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xcc => Instruction {
+                op: Operation::CZ(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
+            },
+            0xcd => Instruction {
+                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17
+            },
+            0xce => Instruction {
+                op: Operation::ACI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xcf => Instruction {
+                op: Operation::RST(Operand::D8(0x08)),
+                size: 1,
+                cycles: 11
+            },
+            0xd0 => Instruction {
+                op: Operation::RNC,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xd1 => Instruction {
+                op: Operation::POP(Register::D),
+                size: 1,
+                cycles: 10
+            },
+            0xd2 => Instruction {
+                op: Operation::JNC(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xd3 => Instruction {
+                op: Operation::OUT(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 10
+            },
+            0xd4 => Instruction {
+                op: Operation::CNC(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
+            },
             0xd5 => Instruction {
                 op: Operation::PUSH(Register::D),
                 size: 1,
                 cycles: 11
+            },
+            0xd6 => Instruction {
+                op: Operation::SUI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xd7 => Instruction {
+                op: Operation::RST(Operand::D8(0x10)),
+                size: 1,
+                cycles: 11
+            },
+            0xd8 => Instruction {
+                op: Operation::RC,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xd9 => Instruction {
+                op: Operation::RET,
+                size: 1,
+                cycles:10
+            },
+            0xda => Instruction {
+                op: Operation::JC(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xdb => Instruction {
+                op: Operation::IN(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 10
+            },
+            0xdc => Instruction {
+                op: Operation::CC(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
+            },
+            0xdd => Instruction {
+                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17
+            },
+            0xde => Instruction {
+                op: Operation::SBI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xdf => Instruction {
+                op: Operation::RST(Operand::D8(0x18)),
+                size: 1,
+                cycles: 11
+            },
+            0xe0 => Instruction {
+                op: Operation::RPO,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xe1 => Instruction {
+                op: Operation::POP(Register::H),
+                size: 1,
+                cycles: 10
+            },
+            0xe2 => Instruction {
+                op: Operation::JPO(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xe3 => Instruction {
+                op: Operation::XTHL,
+                size: 1,
+                cycles: 18
+            },
+            0xe4 => Instruction {
+                op: Operation::CPO(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
             },
             0xe5 => Instruction {
                 op: Operation::PUSH(Register::H),
                 size: 1,
                 cycles: 11
             },
+            0xe6 => Instruction {
+                op: Operation::ANI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xe7 => Instruction {
+                op: Operation::RST(Operand::D8(0x20)),
+                size: 1,
+                cycles: 11
+            },          
+            0xe8 => Instruction {
+                op: Operation::RPE,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xe9 => Instruction {
+                op: Operation::PCHL,
+                size: 1,
+                cycles: 5
+            },
+            0xea => Instruction {
+                op: Operation::JPE(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xeb => Instruction {
+                op: Operation::XCHG,
+                size: 1,
+                cycles: 5
+            },
+            0xec => Instruction {
+                op: Operation::CPE(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
+            },
+            0xed => Instruction {
+                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17
+            },
+            0xee => Instruction {
+                op: Operation::XRI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xef => Instruction {
+                op: Operation::RST(Operand::D8(0x28)),
+                size: 1,
+                cycles: 11
+            },
+            0xf0 => Instruction {
+                op: Operation::RP,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xf1 => Instruction {
+                op: Operation::POP(Register::PSW),
+                size: 1,
+                cycles: 10
+            },
+            0xf2 => Instruction {
+                op: Operation::JP(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xf3 => Instruction {
+                op: Operation::DI,
+                size: 1,
+                cycles: 4
+            },
+            0xf4 => Instruction {
+                op: Operation::CP(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
+            },
             0xf5 => Instruction {
                 op: Operation::PUSH(Register::PSW),
+                size: 1,
+                cycles: 11
+            },
+            0xf6 => Instruction {
+                op: Operation::ORI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xf7 => Instruction {
+                op: Operation::RST(Operand::D8(0x30)),
+                size: 1,
+                cycles: 11
+            },
+            0xf8 => Instruction {
+                op: Operation::RM,
+                size: 1,
+                cycles: 11 //11/5
+            },
+            0xf9 => Instruction {
+                op: Operation::SPHL,
+                size: 1,
+                cycles: 5
+            },
+            0xfa => Instruction {
+                op: Operation::JM(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 10
+            },
+            0xfb => Instruction {
+                op: Operation::EI,
+                size: 1,
+                cycles: 4
+            },
+            0xfc => Instruction {
+                op: Operation::CM(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17 //17/11
+            },
+            0xfd => Instruction {
+                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
+                size: 3,
+                cycles: 17
+            },
+            0xfe => Instruction {
+                op: Operation::CPI(Operand::D8(Instruction::read_imm8(bytes))),
+                size: 2,
+                cycles: 7
+            },
+            0xff => Instruction {
+                op: Operation::RST(Operand::D8(0x38)),
                 size: 1,
                 cycles: 11
             },
