@@ -883,37 +883,37 @@ impl Instruction {
                 cycles: 4
             },
             0xa9 =>Instruction {
-                op: Operation::ANA(Register::C),
+                op: Operation::XRA(Register::C),
                 size: 1,
                 cycles: 4
             },
             0xaa =>Instruction {
-                op: Operation::ANA(Register::D),
+                op: Operation::XRA(Register::D),
                 size: 1,
                 cycles: 4
             },
             0xab =>Instruction {
-                op: Operation::ANA(Register::E),
+                op: Operation::XRA(Register::E),
                 size: 1,
                 cycles: 4
             },
             0xac =>Instruction {
-                op: Operation::ANA(Register::H),
+                op: Operation::XRA(Register::H),
                 size: 1,
                 cycles: 4
             },
             0xad =>Instruction {
-                op: Operation::ANA(Register::L),
+                op: Operation::XRA(Register::L),
                 size: 1,
                 cycles: 4
             },
             0xae =>Instruction {
-                op: Operation::ANA(Register::M),
+                op: Operation::XRA(Register::M),
                 size: 1,
                 cycles: 7
             },
             0xaf =>Instruction {
-                op: Operation::ANA(Register::A),
+                op: Operation::XRA(Register::A),
                 size: 1,
                 cycles: 4
             },
