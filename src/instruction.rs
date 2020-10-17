@@ -439,3 +439,28 @@ impl fmt::Debug for Instruction {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cycles_m_target() {
+        assert_eq!(Instruction::MOV(Register::M, Register::B).cycles(), 7);
+    }
+    
+    #[test]
+    fn test_cycles_m_source() {
+        assert_eq!(Instruction::MOV(Register::B, Register::M).cycles(), 7);
+    }
+
+    #[test]
+    fn test_cycles_m_neither() {
+        assert_eq!(Instruction::MOV(Register::B, Register::C).cycles(), 5);
+    }
+    
+    #[test]
+    fn test_size() {
+        assert_eq!(Instruction::PUSH(Register::C).size(), 1);
+    }
+}
