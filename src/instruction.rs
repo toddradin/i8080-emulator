@@ -11,41 +11,41 @@ pub enum Register {
     L,
     M,
     SP,
-    PSW
+    PSW,
 }
 
 pub enum Operand {
     A16(u16),
     D8(u8),
-    D16(u16)
+    D16(u16),
 }
 
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
 //
 // EACH OPERATION ADDED HERE WILL NEED TO BE ADDED TO THE MATCH IN THE CORRESPONDING
-// fmt FUNCTION. 
+// fmt FUNCTION.
 pub enum Instruction {
     NOP,
     JMP(Operand),
     PUSH(Register),
     MVI(Register, Operand),
     STA(Operand),
-    LXI(Register, Operand), 
+    LXI(Register, Operand),
     STAX(Register),
     INX(Register),
     INR(Register),
     DCR(Register),
     RLC,
     DAD(Register),
-    LDAX(Register), 
-    DCX(Register), 
+    LDAX(Register),
+    DCX(Register),
     RRC,
-    RAL, 
+    RAL,
     RAR,
     SHLD(Operand),
-    DAA, 
+    DAA,
     LHLD(Operand),
-    CMA, 
+    CMA,
     STC,
     LDA(Operand),
     CMC,
@@ -56,16 +56,15 @@ pub enum Instruction {
     ADC(Register),
     SUB(Register),
     SBB(Register),
-    XRA(Register)
+    XRA(Register),
 }
 
-impl Instruction { 
+impl Instruction {
     fn decode_op(bytes: &[u8]) -> Result<Instruction, ()> {
         let opcode = bytes[0];
 
         let instruction = match opcode {
-            0x00 | 0x10 | 0x20 | 0x30 | 
-            0x08 | 0x18 | 0x28 | 0x38  => Instruction::NOP,
+            0x00 | 0x10 | 0x20 | 0x30 | 0x08 | 0x18 | 0x28 | 0x38 => Instruction::NOP,
             0x01 => Instruction::LXI(Register::B, Operand::D16(Instruction::read_imm16(bytes))),
             0x02 => Instruction::STAX(Register::B),
             0x03 => Instruction::INX(Register::B),
@@ -235,14 +234,15 @@ impl Instruction {
             0xae => Instruction::XRA(Register::M),
             0xaf => Instruction::XRA(Register::A),
 
-
-
             0xc3 => Instruction::JMP(Operand::A16(Instruction::read_imm16(bytes))),
             0xc5 => Instruction::PUSH(Register::B),
             0xd5 => Instruction::PUSH(Register::D),
             0xe5 => Instruction::PUSH(Register::H),
             0xf5 => Instruction::PUSH(Register::PSW),
-            _ => unimplemented!("instruction {:#x?} has not yet been implemented", opcode)
+            _ => unimplemented!(
+                "opcode instruction {:#x?} has not yet been implemented",
+                opcode
+            ),
         };
 
         Ok(instruction)
@@ -263,22 +263,22 @@ impl Instruction {
             Instruction::PUSH(_) => 1,
             Instruction::MVI(_, _) => 2,
             Instruction::STA(_) => 3,
-            Instruction::LXI(_,_) => 3,
+            Instruction::LXI(_, _) => 3,
             Instruction::STAX(_) => 1,
             Instruction::INX(_) => 1,
             Instruction::INR(_) => 1,
             Instruction::DCR(_) => 1,
             Instruction::RLC => 1,
             Instruction::DAD(_) => 1,
-            Instruction::LDAX(_) => 1, 
-            Instruction::DCX(_) => 1, 
-            Instruction::RRC => 1, 
-            Instruction::RAL => 1,  
-            Instruction::RAR => 1, 
+            Instruction::LDAX(_) => 1,
+            Instruction::DCX(_) => 1,
+            Instruction::RRC => 1,
+            Instruction::RAL => 1,
+            Instruction::RAR => 1,
             Instruction::SHLD(_) => 3,
-            Instruction::DAA => 1, 
+            Instruction::DAA => 1,
             Instruction::LHLD(_) => 3,
-            Instruction::CMA => 1, 
+            Instruction::CMA => 1,
             Instruction::STC => 1,
             Instruction::LDA(_) => 3,
             Instruction::CMC => 1,
@@ -290,7 +290,6 @@ impl Instruction {
             Instruction::SUB(_) => 1,
             Instruction::SBB(_) => 1,
             Instruction::XRA(_) => 1,
-            _ => unimplemented!("size for instruction {:#x?} has not yet been implemented", *self)
         }
     }
 
@@ -299,87 +298,66 @@ impl Instruction {
             Instruction::NOP => 4,
             Instruction::JMP(_) => 10,
             Instruction::PUSH(_) => 11,
-            Instruction::MVI(target, _) => { 
-                match target {
-                    Register::M => 10,
-                    _ => 7
-                }
+            Instruction::MVI(target, _) => match target {
+                Register::M => 10,
+                _ => 7,
             },
             Instruction::STA(_) => 13,
-            Instruction::LXI(_,_) => 10,
+            Instruction::LXI(_, _) => 10,
             Instruction::STAX(_) => 7,
             Instruction::INX(_) => 5,
-            Instruction::INR(target) => {
-                match target {
-                    Register::M => 10,
-                    _ => 5
-                }
+            Instruction::INR(target) => match target {
+                Register::M => 10,
+                _ => 5,
             },
-            Instruction::DCR(target) => {
-                match target {
-                    Register::M => 10,
-                    _ => 5
-                }
+            Instruction::DCR(target) => match target {
+                Register::M => 10,
+                _ => 5,
             },
             Instruction::RLC => 4,
             Instruction::DAD(_) => 10,
-            Instruction::LDAX(_) => 7, 
-            Instruction::DCX(_) => 5, 
+            Instruction::LDAX(_) => 7,
+            Instruction::DCX(_) => 5,
             Instruction::RRC => 4,
-            Instruction::RAL => 4, 
+            Instruction::RAL => 4,
             Instruction::RAR => 4,
             Instruction::SHLD(_) => 16,
-            Instruction::DAA => 4, 
+            Instruction::DAA => 4,
             Instruction::LHLD(_) => 16,
-            Instruction::CMA => 4, 
+            Instruction::CMA => 4,
             Instruction::STC => 4,
             Instruction::LDA(_) => 13,
             Instruction::CMC => 4,
-            Instruction::MOV(target, source) => {
-                match (target, source) {
-                    (Register::M, _) => 7,
-                    (_, Register::M) => 7,
-                    _ => 5
-                }
+            Instruction::MOV(target, source) => match (target, source) {
+                (Register::M, _) => 7,
+                (_, Register::M) => 7,
+                _ => 5,
             },
             Instruction::HLT => 7,
-            Instruction::ADD(target) => {
-                match target {
-                    Register::M => 7,
-                    _ => 4
-                }
+            Instruction::ADD(target) => match target {
+                Register::M => 7,
+                _ => 4,
             },
-            Instruction::ANA(target) => {
-                match target {
-                    Register::M => 7,
-                    _ => 4
-                }
+            Instruction::ANA(target) => match target {
+                Register::M => 7,
+                _ => 4,
             },
-            Instruction::ADC(target) => {
-                match target {
-                    Register::M => 7,
-                    _ => 4
-                }
+            Instruction::ADC(target) => match target {
+                Register::M => 7,
+                _ => 4,
             },
-            Instruction::SUB(target) => {
-                match target {
-                    Register::M => 7,
-                    _ => 4
-                }
+            Instruction::SUB(target) => match target {
+                Register::M => 7,
+                _ => 4,
             },
-            Instruction::SBB(target) => {
-                match target {
-                    Register::M => 7,
-                    _ => 4
-                }
+            Instruction::SBB(target) => match target {
+                Register::M => 7,
+                _ => 4,
             },
-            Instruction::XRA(target) => {
-                match target {
-                    Register::M => 7,
-                    _ => 4
-                }
+            Instruction::XRA(target) => match target {
+                Register::M => 7,
+                _ => 4,
             },
-            _ => unimplemented!("cycles for instruction {:#x?} has not yet been implemented", *self)
         }
     }
 }
@@ -395,7 +373,6 @@ impl fmt::Debug for Operand {
         match *self {
             Operand::D8(val) => write!(f, "{:#x?}", val),
             Operand::A16(val) | Operand::D16(val) => write!(f, "{:#x?}", val),
-            _ => write!(f, "Debug printing is not implemented for {:#x?}", self)
         }
     }
 }
@@ -408,34 +385,33 @@ impl fmt::Debug for Instruction {
             Instruction::JMP(val) => write!(f, "JMP\t{:#x?}", val),
             Instruction::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
             Instruction::STA(val) => write!(f, "STA\t{:#x?}", val),
-            Instruction::LXI(lhs, rhs) => write!(f, "LXI\t{:#x?}, {:#x?}", lhs, rhs), 
+            Instruction::LXI(lhs, rhs) => write!(f, "LXI\t{:#x?}, {:#x?}", lhs, rhs),
             Instruction::STAX(val) => write!(f, "STAX\t{:#x?}", val),
             Instruction::INX(val) => write!(f, "INX\t{:#x?}", val),
             Instruction::INR(val) => write!(f, "INR\t{:#x?}", val),
             Instruction::DCR(val) => write!(f, "DCR\t{:#x?}", val),
             Instruction::RLC => write!(f, "RLC"),
             Instruction::DAD(val) => write!(f, "DAD\t{:#x?}", val),
-            Instruction::LDAX(val) => write!(f, "LDAX\t{:#x?}", val), 
-            Instruction::DCX(val) => write!(f, "DCX\t{:#x?}", val), 
+            Instruction::LDAX(val) => write!(f, "LDAX\t{:#x?}", val),
+            Instruction::DCX(val) => write!(f, "DCX\t{:#x?}", val),
             Instruction::RRC => write!(f, "RLC"),
-            Instruction::RAL => write!(f, "RLC"), 
+            Instruction::RAL => write!(f, "RLC"),
             Instruction::RAR => write!(f, "RLC"),
             Instruction::SHLD(val) => write!(f, "SHLD\t{:#x?}", val),
-            Instruction::DAA => write!(f, "RLC"), 
+            Instruction::DAA => write!(f, "RLC"),
             Instruction::LHLD(val) => write!(f, "LHLD\t{:#x?}", val),
-            Instruction::CMA => write!(f, "RLC"), 
+            Instruction::CMA => write!(f, "RLC"),
             Instruction::STC => write!(f, "RLC"),
             Instruction::LDA(val) => write!(f, "LDA\t{:#x?}", val),
             Instruction::CMC => write!(f, "RLC"),
             Instruction::MOV(lhs, rhs) => write!(f, "MOV\t{:#x?}, {:#x?}", lhs, rhs),
-            Instruction::HLT => write!(f, "HLT"), 
+            Instruction::HLT => write!(f, "HLT"),
             Instruction::ADD(val) => write!(f, "ADD\t{:#x?}", val),
             Instruction::ANA(val) => write!(f, "ANA\t{:#x?}", val),
             Instruction::ADC(val) => write!(f, "ADC\t{:#x?}", val),
             Instruction::SUB(val) => write!(f, "SUB\t{:#x?}", val),
             Instruction::SBB(val) => write!(f, "SBB\t{:#x?}", val),
             Instruction::XRA(val) => write!(f, "XRA\t{:#x?}", val),
-            _ => unimplemented!("Instruction has not yet been implemented for fmt::Debug")
         }
     }
 }
@@ -448,7 +424,7 @@ mod tests {
     fn test_cycles_m_target() {
         assert_eq!(Instruction::MOV(Register::M, Register::B).cycles(), 7);
     }
-    
+
     #[test]
     fn test_cycles_m_source() {
         assert_eq!(Instruction::MOV(Register::B, Register::M).cycles(), 7);
@@ -458,7 +434,7 @@ mod tests {
     fn test_cycles_m_neither() {
         assert_eq!(Instruction::MOV(Register::B, Register::C).cycles(), 5);
     }
-    
+
     #[test]
     fn test_size() {
         assert_eq!(Instruction::PUSH(Register::C).size(), 1);
