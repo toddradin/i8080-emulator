@@ -1,7 +1,7 @@
 use std::fmt;
 
 #[derive(Copy, Clone, Debug)]
-enum Register {
+pub enum Register {
     A,
     B,
     C,
@@ -14,7 +14,7 @@ enum Register {
     PSW
 }
 
-enum Operand {
+pub enum Operand {
     A16(u16),
     D8(u8),
     D16(u16)

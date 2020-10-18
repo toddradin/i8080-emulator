@@ -4,7 +4,7 @@ use instruction::Instruction;
 use std::fs;
 
 fn main() -> Result<(), std::io::Error> {
-    let buffer = fs::read("../roms/invaders.h")?;
+    let buffer = fs::read("roms/invaders.h")?;
     
     let mut pc = 0;
     while pc < buffer.len() {
