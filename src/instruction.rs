@@ -14,23 +14,17 @@ pub enum Register {
     PSW,
 }
 
-pub enum Operand {
-    A16(u16),
-    D8(u8),
-    D16(u16),
-}
-
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
-//
+// Operand::A16(Instruction::read_imm16(bytes))
 // EACH OPERATION ADDED HERE WILL NEED TO BE ADDED TO THE MATCH IN THE CORRESPONDING
 // fmt FUNCTION.
 pub enum Instruction {
     NOP,
-    JMP(Operand),
+    JMP(u16),
     PUSH(Register),
-    MVI(Register, Operand),
-    STA(Operand),
-    LXI(Register, Operand),
+    MVI(Register, u8),
+    STA(u16),
+    LXI(Register, u16),
     STAX(Register),
     INX(Register),
     INR(Register),
@@ -42,12 +36,12 @@ pub enum Instruction {
     RRC,
     RAL,
     RAR,
-    SHLD(Operand),
+    SHLD(u16),
     DAA,
-    LHLD(Operand),
+    LHLD(u16),
     CMA,
     STC,
-    LDA(Operand),
+    LDA(u16),
     CMC,
     MOV(Register, Register),
     HLT,
@@ -65,61 +59,61 @@ impl Instruction {
 
         let instruction = match opcode {
             0x00 | 0x10 | 0x20 | 0x30 | 0x08 | 0x18 | 0x28 | 0x38 => Instruction::NOP,
-            0x01 => Instruction::LXI(Register::B, Operand::D16(Instruction::read_imm16(bytes))),
+            0x01 => Instruction::LXI(Register::B, u16::from_le_bytes([bytes[1], bytes[2]])),
             0x02 => Instruction::STAX(Register::B),
             0x03 => Instruction::INX(Register::B),
             0x04 => Instruction::INR(Register::B),
             0x05 => Instruction::DCR(Register::B),
-            0x06 => Instruction::MVI(Register::B, Operand::D8(Instruction::read_imm8(bytes))),
+            0x06 => Instruction::MVI(Register::B, bytes[1]),
             0x07 => Instruction::RLC,
             0x09 => Instruction::DAD(Register::B),
             0x0a => Instruction::LDAX(Register::B),
             0x0b => Instruction::DCX(Register::B),
             0x0c => Instruction::INR(Register::C),
             0x0d => Instruction::DCR(Register::C),
-            0x0e => Instruction::MVI(Register::C, Operand::D8(Instruction::read_imm8(bytes))),
+            0x0e => Instruction::MVI(Register::C, bytes[1]),
             0x0f => Instruction::RRC,
-            0x11 => Instruction::LXI(Register::D, Operand::D16(Instruction::read_imm16(bytes))),
+            0x11 => Instruction::LXI(Register::D, u16::from_le_bytes([bytes[1], bytes[2]])),
             0x12 => Instruction::STAX(Register::D),
             0x13 => Instruction::INX(Register::D),
             0x14 => Instruction::INR(Register::D),
             0x15 => Instruction::DCR(Register::D),
-            0x16 => Instruction::MVI(Register::D, Operand::D8(Instruction::read_imm8(bytes))),
+            0x16 => Instruction::MVI(Register::D, bytes[1]),
             0x17 => Instruction::RAL,
             0x19 => Instruction::DAD(Register::D),
             0x1a => Instruction::LDAX(Register::D),
             0x1b => Instruction::DCX(Register::D),
             0x1c => Instruction::INR(Register::E),
             0x1d => Instruction::DCR(Register::E),
-            0x1e => Instruction::MVI(Register::E, Operand::D8(Instruction::read_imm8(bytes))),
+            0x1e => Instruction::MVI(Register::E, bytes[1]),
             0x1f => Instruction::RAR,
-            0x21 => Instruction::LXI(Register::H, Operand::D16(Instruction::read_imm16(bytes))),
-            0x22 => Instruction::SHLD(Operand::A16(Instruction::read_imm16(bytes))),
+            0x21 => Instruction::LXI(Register::H, u16::from_le_bytes([bytes[1], bytes[2]])),
+            0x22 => Instruction::SHLD(u16::from_le_bytes([bytes[1], bytes[2]])),
             0x23 => Instruction::INX(Register::H),
             0x24 => Instruction::INR(Register::H),
             0x25 => Instruction::DCR(Register::H),
-            0x26 => Instruction::MVI(Register::H, Operand::D8(Instruction::read_imm8(bytes))),
+            0x26 => Instruction::MVI(Register::H, bytes[1]),
             0x27 => Instruction::DAA,
             0x29 => Instruction::DAD(Register::H),
-            0x2a => Instruction::LHLD(Operand::A16(Instruction::read_imm16(bytes))),
+            0x2a => Instruction::LHLD(u16::from_le_bytes([bytes[1], bytes[2]])),
             0x2b => Instruction::DCX(Register::H),
             0x2c => Instruction::INR(Register::L),
             0x2d => Instruction::DCR(Register::L),
-            0x2e => Instruction::MVI(Register::L, Operand::D8(Instruction::read_imm8(bytes))),
+            0x2e => Instruction::MVI(Register::L, bytes[1]),
             0x2f => Instruction::CMA,
-            0x31 => Instruction::LXI(Register::SP, Operand::D16(Instruction::read_imm16(bytes))),
-            0x32 => Instruction::STA(Operand::A16(Instruction::read_imm16(bytes))),
+            0x31 => Instruction::LXI(Register::SP, u16::from_le_bytes([bytes[1], bytes[2]])),
+            0x32 => Instruction::STA(u16::from_le_bytes([bytes[1], bytes[2]])),
             0x33 => Instruction::INX(Register::SP),
             0x34 => Instruction::INR(Register::M),
             0x35 => Instruction::DCR(Register::M),
-            0x36 => Instruction::MVI(Register::M, Operand::D8(Instruction::read_imm8(bytes))),
+            0x36 => Instruction::MVI(Register::M, bytes[1]),
             0x37 => Instruction::STC,
             0x39 => Instruction::DAD(Register::SP),
-            0x3a => Instruction::LDA(Operand::A16(Instruction::read_imm16(bytes))),
+            0x3a => Instruction::LDA(u16::from_le_bytes([bytes[1], bytes[2]])),
             0x3b => Instruction::DCX(Register::SP),
             0x3c => Instruction::INR(Register::A),
             0x3d => Instruction::DCR(Register::A),
-            0x3e => Instruction::MVI(Register::A, Operand::D8(Instruction::read_imm8(bytes))),
+            0x3e => Instruction::MVI(Register::A, bytes[1]),
             0x3f => Instruction::CMC,
             0x40 => Instruction::MOV(Register::B, Register::B),
             0x41 => Instruction::MOV(Register::B, Register::C),
@@ -234,7 +228,7 @@ impl Instruction {
             0xae => Instruction::XRA(Register::M),
             0xaf => Instruction::XRA(Register::A),
 
-            0xc3 => Instruction::JMP(Operand::A16(Instruction::read_imm16(bytes))),
+            0xc3 => Instruction::JMP(u16::from_le_bytes([bytes[1], bytes[2]])),
             0xc5 => Instruction::PUSH(Register::B),
             0xd5 => Instruction::PUSH(Register::D),
             0xe5 => Instruction::PUSH(Register::H),
@@ -246,14 +240,6 @@ impl Instruction {
         };
 
         Ok(instruction)
-    }
-
-    fn read_imm8(bytes: &[u8]) -> u8 {
-        u8::from_le_bytes([bytes[1]])
-    }
-
-    fn read_imm16(bytes: &[u8]) -> u16 {
-        u16::from_le_bytes([bytes[1], bytes[2]])
     }
 
     pub fn size(&self) -> u8 {
@@ -365,15 +351,6 @@ impl Instruction {
 impl From<&[u8]> for Instruction {
     fn from(bytes: &[u8]) -> Instruction {
         Instruction::decode_op(bytes).unwrap()
-    }
-}
-
-impl fmt::Debug for Operand {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Operand::D8(val) => write!(f, "{:#x?}", val),
-            Operand::A16(val) | Operand::D16(val) => write!(f, "{:#x?}", val),
-        }
     }
 }
 
