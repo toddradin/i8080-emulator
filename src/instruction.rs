@@ -75,7 +75,7 @@ enum Operation {
     SUI(Operand),
     XCHG,
     XRI(Operand),
-    XTHL
+    XTHL,
     HLT,
     ADD(Register),
     ANA(Register),
