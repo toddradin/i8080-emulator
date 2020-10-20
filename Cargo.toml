@@ -1,5 +1,5 @@
 [package]
-name = "disassembler"
+name = "i8080-emulator"
 version = "0.1.0"
 authors = ["toddradin <todd.radin@gmail.com>"]
 edition = "2018"

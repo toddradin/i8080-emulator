@@ -1,63 +1,81 @@
 use std::fmt;
 
+#[derive(Copy, Clone, Debug)]
+pub enum Register {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    M,
+    SP,
+    PSW,
+}
+
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
-//
-// EACH OPERATION ADDED HERE WILL NEED TO BE ADDED TO THE MATCH IN THE CORRESPONDING
-// fmt FUNCTION. 
-enum Operation {
+pub enum Instruction {
     NOP,
-    JMP(Operand),
+    JMP(u16),
     PUSH(Register),
-    MVI(Register, Operand), //FIX ME
-    STA(Operand),
-    LXI(Register, Operand), // FIX ME
+    MVI(Register, u8),
+    STA(u16),
+    LXI(Register, u16),
     STAX(Register),
     INX(Register),
     INR(Register),
     DCR(Register),
     RLC,
     DAD(Register),
-    LDAX(Register), 
-    DCX(Register), 
+    LDAX(Register),
+    DCX(Register),
     RRC,
-    RAL, 
+    RAL,
     RAR,
-    SHLD(Operand),
-    DAA, 
-    LHLD(Operand),
-    CMA, 
+    SHLD(u16),
+    DAA,
+    LHLD(u16),
+    CMA,
     STC,
-    LDA(Operand),
+    LDA(u16),
     CMC,
     MOV(Register, Register),
-    ACI(Operand),
-    ADI(Operand),
-    ANI(Operand),
-    CALL(Operand),
-    CC(Operand),
-    CM(Operand),
+    HLT,
+    ADD(Register),
+    ANA(Register),
+    ADC(Register),
+    SUB(Register),
+    SBB(Register),
+    XRA(Register),
+    ACI(u8),
+    ADI(u8),
+    ANI(u8),
+    CALL(u16),
+    CC(u16),
+    CM(u16),
     CMP(Register),
-    CNC(Operand),
-    CP(Operand),
-    CPE(Operand),
-    CPI(Operand),
-    CPO(Operand),
-    CNZ(Operand),
-    CZ(Operand),
+    CNC(u16),
+    CP(u16),
+    CPE(u16),
+    CPI(u8),
+    CPO(u16),
+    CNZ(u16),
+    CZ(u16),
     DI,
     EI,
-    IN(Operand),
-    JC(Operand),
-    JM(Operand),
-    JNC(Operand),
-    JNZ(Operand),
-    JP(Operand),
-    JPE(Operand),
-    JPO(Operand),
-    JZ(Operand),
+    IN(u8),
+    JC(u16),
+    JM(u16),
+    JNC(u16),
+    JNZ(u16),
+    JP(u16),
+    JPE(u16),
+    JPO(u16),
+    JZ(u16),
     ORA(Register),
-    ORI(Operand),
-    OUT(Operand),
+    ORI(u8),
+    OUT(u8),
     PCHL,
     POP(Register),
     RC,
@@ -68,48 +86,14 @@ enum Operation {
     RP,
     RPE,
     RPO,
-    RST(Operand),
+    RST(u8),
     RZ,
-    SBI(Operand),
+    SBI(u8),
     SPHL,
-    SUI(Operand),
+    SUI(u8),
     XCHG,
-    XRI(Operand),
+    XRI(u8),
     XTHL,
-    HLT,
-    ADD(Register),
-    ANA(Register),
-    ADC(Register),
-    SUB(Register),
-    SBB(Register),
-    XRA(Register)
-
-}
-
-#[derive(Debug)]
-enum Register {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    M,
-    SP,
-    PSW
-}
-
-enum Operand {
-    A16(u16),
-    D8(u8),
-    D16(u16)
-}
-
-pub struct Instruction {
-    op: Operation,
-    size: u8,
-    cycles: u8
 }
 
 impl Instruction {
@@ -117,1261 +101,491 @@ impl Instruction {
         let opcode = bytes[0];
 
         let instruction = match opcode {
-            0x00 | 0x10 | 0x20 | 0x30 | 
-            0x08 | 0x18 | 0x28 | 0x38  => Instruction {
-                op: Operation::NOP,
-                size: 1,
-                cycles: 4
-            },
-            0x01 => Instruction {
-                op: Operation::LXI(Register::B, Operand::D16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0x02 => Instruction {
-                op: Operation::STAX(Register::B),
-                size: 1,
-                cycles: 7
-            },
-            0x03 => Instruction {
-                op: Operation::INX(Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x04 => Instruction {
-                op: Operation::INR(Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x05 => Instruction {
-                op: Operation::DCR(Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x06 => Instruction {
-                op: Operation::MVI(Register::B, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x07 => Instruction {
-                op: Operation::RLC,
-                size: 1,
-                cycles: 4
-            },
-            0x09 => Instruction {
-                op: Operation::DAD(Register::B),
-                size: 1,
-                cycles: 10
-            },
-            0x0a => Instruction {
-                op: Operation::LDAX(Register::B),
-                size: 1,
-                cycles: 7
-            },
-            0x0b => Instruction {
-                op: Operation::DCX(Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x0c => Instruction {
-                op: Operation::INR(Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x0d => Instruction {
-                op: Operation::DCR(Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x0e => Instruction {
-                op: Operation::MVI(Register::C, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x0f => Instruction {
-                op: Operation::RRC,
-                size: 1,
-                cycles: 4
-            },
-            0x11 => Instruction {
-                op: Operation::LXI(Register::D, Operand::D16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0x12 => Instruction {
-                op: Operation::STAX(Register::D),
-                size: 1,
-                cycles: 7
-            },
-            0x13 => Instruction {
-                op: Operation::INX(Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x14 => Instruction {
-                op: Operation::INR(Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x15 => Instruction {
-                op: Operation::DCR(Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x16 => Instruction {
-                op: Operation::MVI(Register::D, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x17 => Instruction {
-                op: Operation::RAL,
-                size: 1,
-                cycles: 4
-            },
-            0x19 => Instruction {
-                op: Operation::DAD(Register::D),
-                size: 1,
-                cycles: 10
-            },
-            0x1a => Instruction {
-                op: Operation::LDAX(Register::D),
-                size: 1,
-                cycles: 7
-            },
-            0x1b => Instruction {
-                op: Operation::DCX(Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x1c => Instruction {
-                op: Operation::INR(Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x1d => Instruction {
-                op: Operation::DCR(Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x1e => Instruction {
-                op: Operation::MVI(Register::E, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x1f => Instruction {
-                op: Operation::RAR,
-                size: 1,
-                cycles: 4
-            },
-            0x21 => Instruction {
-                op: Operation::LXI(Register::H, Operand::D16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0x22 => Instruction {
-                op: Operation::SHLD(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 16
-            },
-            0x23 => Instruction {
-                op: Operation::INX(Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x24 => Instruction {
-                op: Operation::INR(Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x25 => Instruction {
-                op: Operation::DCR(Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x26 => Instruction {
-                op: Operation::MVI(Register::H, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x27 => Instruction {
-                op: Operation::DAA,
-                size: 1,
-                cycles: 4
-            },
-            0x29 => Instruction {
-                op: Operation::DAD(Register::H),
-                size: 1,
-                cycles: 10
-            },
-            0x2a => Instruction {
-                op: Operation::LHLD(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 16
-            },
-            0x2b => Instruction {
-                op: Operation::DCX(Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x2c => Instruction {
-                op: Operation::INR(Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x2d => Instruction {
-                op: Operation::DCR(Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x2e => Instruction {
-                op: Operation::MVI(Register::L, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x2f => Instruction {
-                op: Operation::CMA,
-                size: 1,
-                cycles: 4
-            },
-            0x31 => Instruction {
-                op: Operation::LXI(Register::SP, Operand::D16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0x32 => Instruction {
-                op: Operation::STA(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 13
-            },
-            0x33 => Instruction {
-                op: Operation::INX(Register::SP),
-                size: 1,
-                cycles: 5
-            },
-            0x34 => Instruction {
-                op: Operation::INR(Register::M),
-                size: 1,
-                cycles: 10
-            },
-            0x35 => Instruction {
-                op: Operation::DCR(Register::M),
-                size: 1,
-                cycles: 10
-            },
-            0x36 => Instruction {
-                op: Operation::MVI(Register::M, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 10
-            },
-            0x37 => Instruction {
-                op: Operation::STC,
-                size: 1,
-                cycles: 4
-            },
-            0x39 => Instruction {
-                op: Operation::DAD(Register::SP),
-                size: 1,
-                cycles: 10
-            },
-            0x3a => Instruction {
-                op: Operation::LDA(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 13
-            },
-            0x3b => Instruction {
-                op: Operation::DCX(Register::SP),
-                size: 1,
-                cycles: 5
-            },
-            0x3c => Instruction {
-                op: Operation::INR(Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x3d => Instruction {
-                op: Operation::DCR(Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x3e => Instruction {
-                op: Operation::MVI(Register::A, Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0x3f => Instruction {
-                op: Operation::CMC,
-                size: 1,
-                cycles: 4
-            },
-            0x40 =>Instruction {
-                op: Operation::MOV(Register::B, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x41 =>Instruction {
-                op: Operation::MOV(Register::B, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x42 =>Instruction {
-                op: Operation::MOV(Register::B, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x43 =>Instruction {
-                op: Operation::MOV(Register::B, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x44 =>Instruction {
-                op: Operation::MOV(Register::B, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x45 =>Instruction {
-                op: Operation::MOV(Register::B, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x46 =>Instruction {
-                op: Operation::MOV(Register::B, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x47 =>Instruction {
-                op: Operation::MOV(Register::B, Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x48 =>Instruction {
-                op: Operation::MOV(Register::C, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x49 =>Instruction {
-                op: Operation::MOV(Register::C, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x4a =>Instruction {
-                op: Operation::MOV(Register::C, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x4b =>Instruction {
-                op: Operation::MOV(Register::C, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x4c =>Instruction {
-                op: Operation::MOV(Register::C, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x4d =>Instruction {
-                op: Operation::MOV(Register::C, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x4e =>Instruction {
-                op: Operation::MOV(Register::C, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x4f =>Instruction {
-                op: Operation::MOV(Register::C, Register::A),
-                size: 1,
-                cycles: 5
-            },
-
-            0x50 =>Instruction {
-                op: Operation::MOV(Register::D, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x51 =>Instruction {
-                op: Operation::MOV(Register::D, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x52 =>Instruction {
-                op: Operation::MOV(Register::D, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x53 =>Instruction {
-                op: Operation::MOV(Register::D, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x54 =>Instruction {
-                op: Operation::MOV(Register::D, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x55 =>Instruction {
-                op: Operation::MOV(Register::D, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x56 =>Instruction {
-                op: Operation::MOV(Register::D, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x57 =>Instruction {
-                op: Operation::MOV(Register::D, Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x58 =>Instruction {
-                op: Operation::MOV(Register::E, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x59 =>Instruction {
-                op: Operation::MOV(Register::E, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x5a =>Instruction {
-                op: Operation::MOV(Register::E, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x5b =>Instruction {
-                op: Operation::MOV(Register::E, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x5c =>Instruction {
-                op: Operation::MOV(Register::E, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x5d =>Instruction {
-                op: Operation::MOV(Register::E, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x5e =>Instruction {
-                op: Operation::MOV(Register::E, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x5f =>Instruction {
-                op: Operation::MOV(Register::E, Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x60 =>Instruction {
-                op: Operation::MOV(Register::H, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x61 =>Instruction {
-                op: Operation::MOV(Register::H, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x62 =>Instruction {
-                op: Operation::MOV(Register::H, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x63 =>Instruction {
-                op: Operation::MOV(Register::H, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x64 =>Instruction {
-                op: Operation::MOV(Register::H, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x65 =>Instruction {
-                op: Operation::MOV(Register::H, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x66 =>Instruction {
-                op: Operation::MOV(Register::H, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x67 =>Instruction {
-                op: Operation::MOV(Register::H, Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x68 =>Instruction {
-                op: Operation::MOV(Register::L, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x69 =>Instruction {
-                op: Operation::MOV(Register::L, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x6a =>Instruction {
-                op: Operation::MOV(Register::L, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x6b =>Instruction {
-                op: Operation::MOV(Register::L, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x6c =>Instruction {
-                op: Operation::MOV(Register::L, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x6d =>Instruction {
-                op: Operation::MOV(Register::L, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x6e =>Instruction {
-                op: Operation::MOV(Register::L, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x6f =>Instruction {
-                op: Operation::MOV(Register::L, Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x70 =>Instruction {
-                op: Operation::MOV(Register::M, Register::B),
-                size: 1,
-                cycles: 7
-            },
-            0x71 =>Instruction {
-                op: Operation::MOV(Register::M, Register::C),
-                size: 1,
-                cycles: 7
-            },
-            0x72 =>Instruction {
-                op: Operation::MOV(Register::M, Register::D),
-                size: 1,
-                cycles: 7
-            },
-            0x73 =>Instruction {
-                op: Operation::MOV(Register::M, Register::E),
-                size: 1,
-                cycles: 7
-            },
-            0x74 =>Instruction {
-                op: Operation::MOV(Register::M, Register::H),
-                size: 1,
-                cycles: 7
-            },
-            0x75 =>Instruction {
-                op: Operation::MOV(Register::M, Register::L),
-                size: 1,
-                cycles: 7
-            },
-            0x76 =>Instruction {
-                op: Operation::HLT,
-                size: 1,
-                cycles: 7
-            },
-            0x77 =>Instruction {
-                op: Operation::MOV(Register::M, Register::A),
-                size: 1,
-                cycles: 7
-            },
-            0x78 =>Instruction {
-                op: Operation::MOV(Register::A, Register::B),
-                size: 1,
-                cycles: 5
-            },
-            0x79 =>Instruction {
-                op: Operation::MOV(Register::A, Register::C),
-                size: 1,
-                cycles: 5
-            },
-            0x7a =>Instruction {
-                op: Operation::MOV(Register::A, Register::D),
-                size: 1,
-                cycles: 5
-            },
-            0x7b =>Instruction {
-                op: Operation::MOV(Register::A, Register::E),
-                size: 1,
-                cycles: 5
-            },
-            0x7c =>Instruction {
-                op: Operation::MOV(Register::A, Register::H),
-                size: 1,
-                cycles: 5
-            },
-            0x7d =>Instruction {
-                op: Operation::MOV(Register::A, Register::L),
-                size: 1,
-                cycles: 5
-            },
-            0x7e =>Instruction {
-                op: Operation::MOV(Register::A, Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x7f =>Instruction {
-                op: Operation::MOV(Register::A, Register::A),
-                size: 1,
-                cycles: 5
-            },
-            0x80 =>Instruction {
-                op: Operation::ADD(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0x81 =>Instruction {
-                op: Operation::ADD(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0x82 =>Instruction {
-                op: Operation::ADD(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0x83 =>Instruction {
-                op: Operation::ADD(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0x84 =>Instruction {
-                op: Operation::ADD(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0x85 =>Instruction {
-                op: Operation::ADD(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0x86 =>Instruction {
-                op: Operation::ADD(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x87 =>Instruction {
-                op: Operation::ADD(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            0x88 =>Instruction {
-                op: Operation::ADC(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0x89 =>Instruction {
-                op: Operation::ADC(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0x8a =>Instruction {
-                op: Operation::ADC(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0x8b =>Instruction {
-                op: Operation::ADC(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0x8c =>Instruction {
-                op: Operation::ADC(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0x8d =>Instruction {
-                op: Operation::ADC(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0x8e =>Instruction {
-                op: Operation::ADC(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x8f =>Instruction {
-                op: Operation::ADC(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            0x90 =>Instruction {
-                op: Operation::SUB(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0x91 =>Instruction {
-                op: Operation::SUB(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0x92 =>Instruction {
-                op: Operation::SUB(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0x93 =>Instruction {
-                op: Operation::SUB(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0x94 =>Instruction {
-                op: Operation::SUB(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0x95 =>Instruction {
-                op: Operation::SUB(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0x96 =>Instruction {
-                op: Operation::SUB(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x97 =>Instruction {
-                op: Operation::SUB(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            0x98 =>Instruction {
-                op: Operation::SBB(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0x99 =>Instruction {
-                op: Operation::SBB(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0x9a =>Instruction {
-                op: Operation::SBB(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0x9b =>Instruction {
-                op: Operation::SBB(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0x9c =>Instruction {
-                op: Operation::SBB(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0x9d =>Instruction {
-                op: Operation::SBB(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0x9e =>Instruction {
-                op: Operation::SBB(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0x9f =>Instruction {
-                op: Operation::SBB(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            0xa0 =>Instruction {
-                op: Operation::ANA(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0xa1 =>Instruction {
-                op: Operation::ANA(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0xa2 =>Instruction {
-                op: Operation::ANA(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0xa3 =>Instruction {
-                op: Operation::ANA(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0xa4 =>Instruction {
-                op: Operation::ANA(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0xa5 =>Instruction {
-                op: Operation::ANA(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0xa6 =>Instruction {
-                op: Operation::ANA(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0xa7 =>Instruction {
-                op: Operation::ANA(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            0xa8 =>Instruction {
-                op: Operation::XRA(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0xa9 =>Instruction {
-                op: Operation::XRA(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0xaa =>Instruction {
-                op: Operation::XRA(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0xab =>Instruction {
-                op: Operation::XRA(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0xac =>Instruction {
-                op: Operation::XRA(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0xad =>Instruction {
-                op: Operation::XRA(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0xae =>Instruction {
-                op: Operation::XRA(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0xaf =>Instruction {
-                op: Operation::XRA(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            //0xb0 through 0xff - DS
-            0xb0 => Instruction {
-                op: Operation::ORA(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0xb1 => Instruction {
-                op: Operation::ORA(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0xb2 => Instruction {
-                op: Operation::ORA(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0xb3 => Instruction {
-                op: Operation::ORA(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0xb4 => Instruction {
-                op: Operation::ORA(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0xb5 => Instruction {
-                op: Operation::ORA(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0xb6 => Instruction {
-                op: Operation::ORA(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0xb7 => Instruction {
-                op: Operation::ORA(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            0xb8 => Instruction {
-                op: Operation::CMP(Register::B),
-                size: 1,
-                cycles: 4
-            },
-            0xb9 => Instruction {
-                op: Operation::CMP(Register::C),
-                size: 1,
-                cycles: 4
-            },
-            0xba => Instruction {
-                op: Operation::CMP(Register::D),
-                size: 1,
-                cycles: 4
-            },
-            0xbb => Instruction {
-                op: Operation::CMP(Register::E),
-                size: 1,
-                cycles: 4
-            },
-            0xbc => Instruction {
-                op: Operation::CMP(Register::H),
-                size: 1,
-                cycles: 4
-            },
-            0xbd => Instruction {
-                op: Operation::CMP(Register::L),
-                size: 1,
-                cycles: 4
-            },
-            0xbe => Instruction {
-                op: Operation::CMP(Register::M),
-                size: 1,
-                cycles: 7
-            },
-            0xbf => Instruction {
-                op: Operation::CMP(Register::A),
-                size: 1,
-                cycles: 4
-            },
-            //note: listed both cycle numbers (action taken/action not-taken) 
+            0x00 | 0x10 | 0x20 | 0x30 | 0x08 | 0x18 | 0x28 | 0x38 => Instruction::NOP,
+            0x01 => Instruction::LXI(Register::B, Instruction::read_imm16(bytes)),
+            0x02 => Instruction::STAX(Register::B),
+            0x03 => Instruction::INX(Register::B),
+            0x04 => Instruction::INR(Register::B),
+            0x05 => Instruction::DCR(Register::B),
+            0x06 => Instruction::MVI(Register::B, Instruction::read_imm8(bytes)),
+            0x07 => Instruction::RLC,
+            0x09 => Instruction::DAD(Register::B),
+            0x0a => Instruction::LDAX(Register::B),
+            0x0b => Instruction::DCX(Register::B),
+            0x0c => Instruction::INR(Register::C),
+            0x0d => Instruction::DCR(Register::C),
+            0x0e => Instruction::MVI(Register::C, Instruction::read_imm8(bytes)),
+            0x0f => Instruction::RRC,
+            0x11 => Instruction::LXI(Register::D, Instruction::read_imm16(bytes)),
+            0x12 => Instruction::STAX(Register::D),
+            0x13 => Instruction::INX(Register::D),
+            0x14 => Instruction::INR(Register::D),
+            0x15 => Instruction::DCR(Register::D),
+            0x16 => Instruction::MVI(Register::D, Instruction::read_imm8(bytes)),
+            0x17 => Instruction::RAL,
+            0x19 => Instruction::DAD(Register::D),
+            0x1a => Instruction::LDAX(Register::D),
+            0x1b => Instruction::DCX(Register::D),
+            0x1c => Instruction::INR(Register::E),
+            0x1d => Instruction::DCR(Register::E),
+            0x1e => Instruction::MVI(Register::E, Instruction::read_imm8(bytes)),
+            0x1f => Instruction::RAR,
+            0x21 => Instruction::LXI(Register::H, Instruction::read_imm16(bytes)),
+            0x22 => Instruction::SHLD(Instruction::read_imm16(bytes)),
+            0x23 => Instruction::INX(Register::H),
+            0x24 => Instruction::INR(Register::H),
+            0x25 => Instruction::DCR(Register::H),
+            0x26 => Instruction::MVI(Register::H, Instruction::read_imm8(bytes)),
+            0x27 => Instruction::DAA,
+            0x29 => Instruction::DAD(Register::H),
+            0x2a => Instruction::LHLD(Instruction::read_imm16(bytes)),
+            0x2b => Instruction::DCX(Register::H),
+            0x2c => Instruction::INR(Register::L),
+            0x2d => Instruction::DCR(Register::L),
+            0x2e => Instruction::MVI(Register::L, Instruction::read_imm8(bytes)),
+            0x2f => Instruction::CMA,
+            0x31 => Instruction::LXI(Register::SP, Instruction::read_imm16(bytes)),
+            0x32 => Instruction::STA(Instruction::read_imm16(bytes)),
+            0x33 => Instruction::INX(Register::SP),
+            0x34 => Instruction::INR(Register::M),
+            0x35 => Instruction::DCR(Register::M),
+            0x36 => Instruction::MVI(Register::M, Instruction::read_imm8(bytes)),
+            0x37 => Instruction::STC,
+            0x39 => Instruction::DAD(Register::SP),
+            0x3a => Instruction::LDA(Instruction::read_imm16(bytes)),
+            0x3b => Instruction::DCX(Register::SP),
+            0x3c => Instruction::INR(Register::A),
+            0x3d => Instruction::DCR(Register::A),
+            0x3e => Instruction::MVI(Register::A, Instruction::read_imm8(bytes)),
+            0x3f => Instruction::CMC,
+            0x40 => Instruction::MOV(Register::B, Register::B),
+            0x41 => Instruction::MOV(Register::B, Register::C),
+            0x42 => Instruction::MOV(Register::B, Register::D),
+            0x43 => Instruction::MOV(Register::B, Register::E),
+            0x44 => Instruction::MOV(Register::B, Register::H),
+            0x45 => Instruction::MOV(Register::B, Register::L),
+            0x46 => Instruction::MOV(Register::B, Register::M),
+            0x47 => Instruction::MOV(Register::B, Register::A),
+            0x48 => Instruction::MOV(Register::C, Register::B),
+            0x49 => Instruction::MOV(Register::C, Register::C),
+            0x4a => Instruction::MOV(Register::C, Register::D),
+            0x4b => Instruction::MOV(Register::C, Register::E),
+            0x4c => Instruction::MOV(Register::C, Register::H),
+            0x4d => Instruction::MOV(Register::C, Register::L),
+            0x4e => Instruction::MOV(Register::C, Register::M),
+            0x4f => Instruction::MOV(Register::C, Register::A),
+            0x50 => Instruction::MOV(Register::D, Register::B),
+            0x51 => Instruction::MOV(Register::D, Register::C),
+            0x52 => Instruction::MOV(Register::D, Register::D),
+            0x53 => Instruction::MOV(Register::D, Register::E),
+            0x54 => Instruction::MOV(Register::D, Register::H),
+            0x55 => Instruction::MOV(Register::D, Register::L),
+            0x56 => Instruction::MOV(Register::D, Register::M),
+            0x57 => Instruction::MOV(Register::D, Register::A),
+            0x58 => Instruction::MOV(Register::E, Register::B),
+            0x59 => Instruction::MOV(Register::E, Register::C),
+            0x5a => Instruction::MOV(Register::E, Register::D),
+            0x5b => Instruction::MOV(Register::E, Register::E),
+            0x5c => Instruction::MOV(Register::E, Register::H),
+            0x5d => Instruction::MOV(Register::E, Register::L),
+            0x5e => Instruction::MOV(Register::E, Register::M),
+            0x5f => Instruction::MOV(Register::E, Register::A),
+            0x60 => Instruction::MOV(Register::H, Register::B),
+            0x61 => Instruction::MOV(Register::H, Register::C),
+            0x62 => Instruction::MOV(Register::H, Register::D),
+            0x63 => Instruction::MOV(Register::H, Register::E),
+            0x64 => Instruction::MOV(Register::H, Register::H),
+            0x65 => Instruction::MOV(Register::H, Register::L),
+            0x66 => Instruction::MOV(Register::H, Register::M),
+            0x67 => Instruction::MOV(Register::H, Register::A),
+            0x68 => Instruction::MOV(Register::L, Register::B),
+            0x69 => Instruction::MOV(Register::L, Register::C),
+            0x6a => Instruction::MOV(Register::L, Register::D),
+            0x6b => Instruction::MOV(Register::L, Register::E),
+            0x6c => Instruction::MOV(Register::L, Register::H),
+            0x6d => Instruction::MOV(Register::L, Register::L),
+            0x6e => Instruction::MOV(Register::L, Register::M),
+            0x6f => Instruction::MOV(Register::L, Register::A),
+            0x70 => Instruction::MOV(Register::M, Register::B),
+            0x71 => Instruction::MOV(Register::M, Register::C),
+            0x72 => Instruction::MOV(Register::M, Register::D),
+            0x73 => Instruction::MOV(Register::M, Register::E),
+            0x74 => Instruction::MOV(Register::M, Register::H),
+            0x75 => Instruction::MOV(Register::M, Register::L),
+            0x76 => Instruction::HLT,
+            0x77 => Instruction::MOV(Register::M, Register::A),
+            0x78 => Instruction::MOV(Register::A, Register::B),
+            0x79 => Instruction::MOV(Register::A, Register::C),
+            0x7a => Instruction::MOV(Register::A, Register::D),
+            0x7b => Instruction::MOV(Register::A, Register::E),
+            0x7c => Instruction::MOV(Register::A, Register::H),
+            0x7d => Instruction::MOV(Register::A, Register::L),
+            0x7e => Instruction::MOV(Register::A, Register::M),
+            0x7f => Instruction::MOV(Register::A, Register::A),
+            0x80 => Instruction::ADD(Register::B),
+            0x81 => Instruction::ADD(Register::C),
+            0x82 => Instruction::ADD(Register::D),
+            0x83 => Instruction::ADD(Register::E),
+            0x84 => Instruction::ADD(Register::H),
+            0x85 => Instruction::ADD(Register::L),
+            0x86 => Instruction::ADD(Register::M),
+            0x87 => Instruction::ADD(Register::A),
+            0x88 => Instruction::ADC(Register::B),
+            0x89 => Instruction::ADC(Register::C),
+            0x8a => Instruction::ADC(Register::D),
+            0x8b => Instruction::ADC(Register::E),
+            0x8c => Instruction::ADC(Register::H),
+            0x8d => Instruction::ADC(Register::L),
+            0x8e => Instruction::ADC(Register::M),
+            0x8f => Instruction::ADC(Register::A),
+            0x90 => Instruction::SUB(Register::B),
+            0x91 => Instruction::SUB(Register::C),
+            0x92 => Instruction::SUB(Register::D),
+            0x93 => Instruction::SUB(Register::E),
+            0x94 => Instruction::SUB(Register::H),
+            0x95 => Instruction::SUB(Register::L),
+            0x96 => Instruction::SUB(Register::M),
+            0x97 => Instruction::SUB(Register::A),
+            0x98 => Instruction::SBB(Register::B),
+            0x99 => Instruction::SBB(Register::C),
+            0x9a => Instruction::SBB(Register::D),
+            0x9b => Instruction::SBB(Register::E),
+            0x9c => Instruction::SBB(Register::H),
+            0x9d => Instruction::SBB(Register::L),
+            0x9e => Instruction::SBB(Register::M),
+            0x9f => Instruction::SBB(Register::A),
+            0xa0 => Instruction::ANA(Register::B),
+            0xa1 => Instruction::ANA(Register::C),
+            0xa2 => Instruction::ANA(Register::D),
+            0xa3 => Instruction::ANA(Register::E),
+            0xa4 => Instruction::ANA(Register::H),
+            0xa5 => Instruction::ANA(Register::L),
+            0xa6 => Instruction::ANA(Register::M),
+            0xa7 => Instruction::ANA(Register::A),
+            0xa8 => Instruction::XRA(Register::B),
+            0xa9 => Instruction::XRA(Register::C),
+            0xaa => Instruction::XRA(Register::D),
+            0xab => Instruction::XRA(Register::E),
+            0xac => Instruction::XRA(Register::H),
+            0xad => Instruction::XRA(Register::L),
+            0xae => Instruction::XRA(Register::M),
+            0xaf => Instruction::XRA(Register::A),
+            0xb0 => Instruction::ORA(Register::B),
+            0xb1 => Instruction::ORA(Register::C),
+            0xb2 => Instruction::ORA(Register::D),
+            0xb3 => Instruction::ORA(Register::E),
+            0xb4 => Instruction::ORA(Register::H),
+            0xb5 => Instruction::ORA(Register::L),
+            0xb6 => Instruction::ORA(Register::M),
+            0xb7 => Instruction::ORA(Register::A),
+            0xb8 => Instruction::CMP(Register::B),
+            0xb9 => Instruction::CMP(Register::C),
+            0xba => Instruction::CMP(Register::D),
+            0xbb => Instruction::CMP(Register::E),
+            0xbc => Instruction::CMP(Register::H),
+            0xbd => Instruction::CMP(Register::L),
+            0xbe => Instruction::CMP(Register::M),
+            0xbf => Instruction::CMP(Register::A),
+            //note: listed both cycle numbers (action taken/action not-taken)
             //next to cycles where applicable.
             //https://pastraiser.com/cpu/i8080/i8080_opcodes.html
-            0xc0 => Instruction {
-                op: Operation::RNZ,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xc1 => Instruction {
-                op: Operation::POP(Register::B),
-                size: 1,
-                cycles: 10
-            },
-            0xc2 => Instruction {
-                op: Operation::JNZ(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xc3 => Instruction {
-                op: Operation::JMP(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xc4 => Instruction {
-                op: Operation::CNZ(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xc5 => Instruction {
-                op: Operation::PUSH(Register::B),
-                size: 1,
-                cycles: 11
-            },
-            0xc6 => Instruction {
-                op: Operation::ADI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xc7 => Instruction {
-                op: Operation::RST(Operand::D8(0x00)),
-                size: 1,
-                cycles: 11
-            },
-            0xc8 => Instruction {
-                op: Operation::RZ,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xc9 => Instruction {
-                op: Operation::RET,
-                size: 1,
-                cycles: 10
-            },
-            0xca => Instruction {
-                op: Operation::JZ(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xcb => Instruction {
-                op: Operation::JMP(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xcc => Instruction {
-                op: Operation::CZ(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xcd => Instruction {
-                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17
-            },
-            0xce => Instruction {
-                op: Operation::ACI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xcf => Instruction {
-                op: Operation::RST(Operand::D8(0x08)),
-                size: 1,
-                cycles: 11
-            },
-            0xd0 => Instruction {
-                op: Operation::RNC,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xd1 => Instruction {
-                op: Operation::POP(Register::D),
-                size: 1,
-                cycles: 10
-            },
-            0xd2 => Instruction {
-                op: Operation::JNC(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xd3 => Instruction {
-                op: Operation::OUT(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 10
-            },
-            0xd4 => Instruction {
-                op: Operation::CNC(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xd5 => Instruction {
-                op: Operation::PUSH(Register::D),
-                size: 1,
-                cycles: 11
-            },
-            0xd6 => Instruction {
-                op: Operation::SUI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xd7 => Instruction {
-                op: Operation::RST(Operand::D8(0x10)),
-                size: 1,
-                cycles: 11
-            },
-            0xd8 => Instruction {
-                op: Operation::RC,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xd9 => Instruction {
-                op: Operation::RET,
-                size: 1,
-                cycles:10
-            },
-            0xda => Instruction {
-                op: Operation::JC(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xdb => Instruction {
-                op: Operation::IN(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 10
-            },
-            0xdc => Instruction {
-                op: Operation::CC(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xdd => Instruction {
-                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17
-            },
-            0xde => Instruction {
-                op: Operation::SBI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xdf => Instruction {
-                op: Operation::RST(Operand::D8(0x18)),
-                size: 1,
-                cycles: 11
-            },
-            0xe0 => Instruction {
-                op: Operation::RPO,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xe1 => Instruction {
-                op: Operation::POP(Register::H),
-                size: 1,
-                cycles: 10
-            },
-            0xe2 => Instruction {
-                op: Operation::JPO(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xe3 => Instruction {
-                op: Operation::XTHL,
-                size: 1,
-                cycles: 18
-            },
-            0xe4 => Instruction {
-                op: Operation::CPO(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xe5 => Instruction {
-                op: Operation::PUSH(Register::H),
-                size: 1,
-                cycles: 11
-            },
-            0xe6 => Instruction {
-                op: Operation::ANI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xe7 => Instruction {
-                op: Operation::RST(Operand::D8(0x20)),
-                size: 1,
-                cycles: 11
-            },          
-            0xe8 => Instruction {
-                op: Operation::RPE,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xe9 => Instruction {
-                op: Operation::PCHL,
-                size: 1,
-                cycles: 5
-            },
-            0xea => Instruction {
-                op: Operation::JPE(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xeb => Instruction {
-                op: Operation::XCHG,
-                size: 1,
-                cycles: 5
-            },
-            0xec => Instruction {
-                op: Operation::CPE(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xed => Instruction {
-                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17
-            },
-            0xee => Instruction {
-                op: Operation::XRI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xef => Instruction {
-                op: Operation::RST(Operand::D8(0x28)),
-                size: 1,
-                cycles: 11
-            },
-            0xf0 => Instruction {
-                op: Operation::RP,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xf1 => Instruction {
-                op: Operation::POP(Register::PSW),
-                size: 1,
-                cycles: 10
-            },
-            0xf2 => Instruction {
-                op: Operation::JP(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xf3 => Instruction {
-                op: Operation::DI,
-                size: 1,
-                cycles: 4
-            },
-            0xf4 => Instruction {
-                op: Operation::CP(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xf5 => Instruction {
-                op: Operation::PUSH(Register::PSW),
-                size: 1,
-                cycles: 11
-            },
-            0xf6 => Instruction {
-                op: Operation::ORI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xf7 => Instruction {
-                op: Operation::RST(Operand::D8(0x30)),
-                size: 1,
-                cycles: 11
-            },
-            0xf8 => Instruction {
-                op: Operation::RM,
-                size: 1,
-                cycles: 11 //11/5
-            },
-            0xf9 => Instruction {
-                op: Operation::SPHL,
-                size: 1,
-                cycles: 5
-            },
-            0xfa => Instruction {
-                op: Operation::JM(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 10
-            },
-            0xfb => Instruction {
-                op: Operation::EI,
-                size: 1,
-                cycles: 4
-            },
-            0xfc => Instruction {
-                op: Operation::CM(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17 //17/11
-            },
-            0xfd => Instruction {
-                op: Operation::CALL(Operand::A16(Instruction::read_imm16(bytes))),
-                size: 3,
-                cycles: 17
-            },
-            0xfe => Instruction {
-                op: Operation::CPI(Operand::D8(Instruction::read_imm8(bytes))),
-                size: 2,
-                cycles: 7
-            },
-            0xff => Instruction {
-                op: Operation::RST(Operand::D8(0x38)),
-                size: 1,
-                cycles: 11
-            },
-            _ => unimplemented!("instruction {:#x?} has not yet been implemented", opcode)
+            0xc0 => Instruction::RNZ,
+            0xc1 => Instruction::POP(Register::B),
+            0xc2 => Instruction::JNZ(Instruction::read_imm16(bytes)),
+            0xc3 | 0xcb => Instruction::JMP(Instruction::read_imm16(bytes)),
+            0xc4 => Instruction::CNZ(Instruction::read_imm16(bytes)),
+            0xc5 => Instruction::PUSH(Register::B),
+            0xc6 => Instruction::ADI(Instruction::read_imm8(bytes)),
+            0xc7 => Instruction::RST(0),
+            0xc8 => Instruction::RZ,
+            0xc9 | 0xd9 => Instruction::RET,
+            0xca => Instruction::JZ(Instruction::read_imm16(bytes)),
+            0xcc => Instruction::CZ(Instruction::read_imm16(bytes)),
+            0xcd | 0xdd | 0xed | 0xfd => Instruction::CALL(Instruction::read_imm16(bytes)),
+            0xce => Instruction::ACI(Instruction::read_imm8(bytes)),
+            0xcf => Instruction::RST(1),
+            0xd0 => Instruction::RNC,
+            0xd1 => Instruction::POP(Register::D),
+            0xd2 => Instruction::JNC(Instruction::read_imm16(bytes)),
+            0xd3 => Instruction::OUT(Instruction::read_imm8(bytes)),
+            0xd4 => Instruction::CNC(Instruction::read_imm16(bytes)),
+            0xd5 => Instruction::PUSH(Register::D),
+            0xd6 => Instruction::SUI(Instruction::read_imm8(bytes)),
+            0xd7 => Instruction::RST(2),
+            0xd8 => Instruction::RC,
+            0xda => Instruction::JC(Instruction::read_imm16(bytes)),
+            0xdb => Instruction::IN(Instruction::read_imm8(bytes)),
+            0xdc => Instruction::CC(Instruction::read_imm16(bytes)),
+            0xde => Instruction::SBI(Instruction::read_imm8(bytes)),
+            0xdf => Instruction::RST(3),
+            0xe0 => Instruction::RPO,
+            0xe1 => Instruction::POP(Register::H),
+            0xe2 => Instruction::JPO(Instruction::read_imm16(bytes)),
+            0xe3 => Instruction::XTHL,
+            0xe4 => Instruction::CPO(Instruction::read_imm16(bytes)),
+            0xe5 => Instruction::PUSH(Register::H),
+            0xe6 => Instruction::ANI(Instruction::read_imm8(bytes)),
+            0xe7 => Instruction::RST(4),
+            0xe8 => Instruction::RPE,
+            0xe9 => Instruction::PCHL,
+            0xea => Instruction::JPE(Instruction::read_imm16(bytes)),
+            0xeb => Instruction::XCHG,
+            0xec => Instruction::CPE(Instruction::read_imm16(bytes)),
+            0xee => Instruction::XRI(Instruction::read_imm8(bytes)),
+            0xef => Instruction::RST(5),
+            0xf0 => Instruction::RP,
+            0xf1 => Instruction::POP(Register::PSW),
+            0xf2 => Instruction::JP(Instruction::read_imm16(bytes)),
+            0xf3 => Instruction::DI,
+            0xf4 => Instruction::CP(Instruction::read_imm16(bytes)),
+            0xf5 => Instruction::PUSH(Register::PSW),
+            0xf6 => Instruction::ORI(Instruction::read_imm8(bytes)),
+            0xf7 => Instruction::RST(6),
+            0xf8 => Instruction::RM,
+            0xf9 => Instruction::SPHL,
+            0xfa => Instruction::JM(Instruction::read_imm16(bytes)),
+            0xfb => Instruction::EI,
+            0xfc => Instruction::CM(Instruction::read_imm16(bytes)),
+            0xfe => Instruction::CPI(Instruction::read_imm8(bytes)),
+            0xff => Instruction::RST(7),
         };
 
         Ok(instruction)
+    }
+
+    pub fn size(&self) -> u8 {
+        match *self {
+            Instruction::NOP => 1,
+            Instruction::JMP(_) => 3,
+            Instruction::PUSH(_) => 1,
+            Instruction::MVI(_, _) => 2,
+            Instruction::STA(_) => 3,
+            Instruction::LXI(_, _) => 3,
+            Instruction::STAX(_) => 1,
+            Instruction::INX(_) => 1,
+            Instruction::INR(_) => 1,
+            Instruction::DCR(_) => 1,
+            Instruction::RLC => 1,
+            Instruction::DAD(_) => 1,
+            Instruction::LDAX(_) => 1,
+            Instruction::DCX(_) => 1,
+            Instruction::RRC => 1,
+            Instruction::RAL => 1,
+            Instruction::RAR => 1,
+            Instruction::SHLD(_) => 3,
+            Instruction::DAA => 1,
+            Instruction::LHLD(_) => 3,
+            Instruction::CMA => 1,
+            Instruction::STC => 1,
+            Instruction::LDA(_) => 3,
+            Instruction::CMC => 1,
+            Instruction::MOV(_, _) => 1,
+            Instruction::HLT => 1,
+            Instruction::ADD(_) => 1,
+            Instruction::ANA(_) => 1,
+            Instruction::ADC(_) => 1,
+            Instruction::SUB(_) => 1,
+            Instruction::SBB(_) => 1,
+            Instruction::XRA(_) => 1,
+            Instruction::ORA(_) => 1,
+            Instruction::CMP(_) => 1,
+            Instruction::RNZ => 1,
+            Instruction::POP(_) => 1,
+            Instruction::JNZ(_) => 3,
+            Instruction::CNZ(_) => 3,
+            Instruction::ADI(_) => 2,
+            Instruction::RST(_) => 1,
+            Instruction::RZ => 1,
+            Instruction::RET => 1,
+            Instruction::JZ(_) => 3,
+            Instruction::CZ(_) => 3,
+            Instruction::CALL(_) => 3,
+            Instruction::ACI(_) => 2,
+            Instruction::RNC => 1,
+            Instruction::JNC(_) => 3,
+            Instruction::OUT(_) => 2,
+            Instruction::CNC(_) => 3,
+            Instruction::SUI(_) => 2,
+            Instruction::RC => 1,
+            Instruction::JC(_) => 3,
+            Instruction::IN(_) => 2,
+            Instruction::CC(_) => 3,
+            Instruction::SBI(_) => 3,
+            Instruction::RPO => 1,
+            Instruction::JPO(_) => 3,
+            Instruction::XTHL => 1,
+            Instruction::CPO(_) => 3,
+            Instruction::ANI(_) => 2,
+            Instruction::RPE => 1,
+            Instruction::PCHL => 1,
+            Instruction::JPE(_) => 3,
+            Instruction::XCHG => 1,
+            Instruction::CPE(_) => 3,
+            Instruction::XRI(_) => 2,
+            Instruction::RP => 1,
+            Instruction::JP(_) => 3,
+            Instruction::DI => 1,
+            Instruction::CP(_) => 3,
+            Instruction::ORI(_) => 2,
+            Instruction::RM => 1,
+            Instruction::SPHL => 1,
+            Instruction::JM(_) => 3,
+            Instruction::EI => 1,
+            Instruction::CM(_) => 3,
+            Instruction::CPI(_) => 2,
+        }
+    }
+
+    pub fn cycles(&self) -> u8 {
+        match *self {
+            Instruction::NOP => 4,
+            Instruction::JMP(_) => 10,
+            Instruction::PUSH(_) => 11,
+            Instruction::MVI(target, _) => match target {
+                Register::M => 10,
+                _ => 7,
+            },
+            Instruction::STA(_) => 13,
+            Instruction::LXI(_, _) => 10,
+            Instruction::STAX(_) => 7,
+            Instruction::INX(_) => 5,
+            Instruction::INR(target) => match target {
+                Register::M => 10,
+                _ => 5,
+            },
+            Instruction::DCR(target) => match target {
+                Register::M => 10,
+                _ => 5,
+            },
+            Instruction::RLC => 4,
+            Instruction::DAD(_) => 10,
+            Instruction::LDAX(_) => 7,
+            Instruction::DCX(_) => 5,
+            Instruction::RRC => 4,
+            Instruction::RAL => 4,
+            Instruction::RAR => 4,
+            Instruction::SHLD(_) => 16,
+            Instruction::DAA => 4,
+            Instruction::LHLD(_) => 16,
+            Instruction::CMA => 4,
+            Instruction::STC => 4,
+            Instruction::LDA(_) => 13,
+            Instruction::CMC => 4,
+            Instruction::MOV(target, source) => match (target, source) {
+                (Register::M, _) => 7,
+                (_, Register::M) => 7,
+                _ => 5,
+            },
+            Instruction::HLT => 7,
+            Instruction::ADD(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::ANA(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::ADC(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::SUB(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::SBB(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::XRA(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::ORA(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::CMP(target) => match target {
+                Register::M => 7,
+                _ => 4,
+            },
+            Instruction::RNZ => 11, // FIX ME  11/5
+            Instruction::POP(_) => 10,
+            Instruction::JNZ(_) => 10,
+            Instruction::CNZ(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::ADI(_) => 7,
+            Instruction::RST(_) => 11,
+            Instruction::RZ => 11, // FIX ME 11/5
+            Instruction::RET => 10,
+            Instruction::JZ(_) => 10,
+            Instruction::CZ(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::CALL(_) => 17,
+            Instruction::ACI(_) => 7,
+            Instruction::RNC => 11, // FIX ME  11/5
+            Instruction::JNC(_) => 10,
+            Instruction::OUT(_) => 10,
+            Instruction::CNC(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::SUI(_) => 7,
+            Instruction::RC => 11, // FIX ME  11/5
+            Instruction::JC(_) => 10,
+            Instruction::IN(_) => 10,
+            Instruction::CC(target) => match target {
+                // FIX ME
+                // cycles: 11 //11/5
+                _ => 11,
+            },
+            Instruction::SBI(_) => 7,
+            Instruction::RPO => 11, // FIX ME  11/5
+            Instruction::JPO(_) => 10,
+            Instruction::XTHL => 18,
+            Instruction::CPO(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::ANI(_) => 7,
+            Instruction::RPE => 11, // FIX ME  11/5
+            Instruction::PCHL => 5,
+            Instruction::JPE(_) => 10,
+            Instruction::XCHG => 5,
+            Instruction::CPE(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::XRI(_) => 7,
+            Instruction::RP => 11, // FIX ME  11/5
+            Instruction::JP(_) => 10,
+            Instruction::DI => 4,
+            Instruction::CP(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::ORI(_) => 7,
+            Instruction::RM => 11, // FIX ME  11/5
+            Instruction::SPHL => 5,
+            Instruction::JM(_) => 10,
+            Instruction::EI => 4,
+            Instruction::CM(target) => match target {
+                // FIX ME
+                // cycles: 17 //17/11
+                _ => 17,
+            },
+            Instruction::CPI(_) => 7,
+        }
     }
 
     fn read_imm8(bytes: &[u8]) -> u8 {
@@ -1381,14 +595,6 @@ impl Instruction {
     fn read_imm16(bytes: &[u8]) -> u16 {
         u16::from_le_bytes([bytes[1], bytes[2]])
     }
-
-    pub fn size(&self) -> u8 {
-        self.size
-    }
-
-    fn cycles(&self) -> u8 {
-        self.cycles
-    }
 }
 
 impl From<&[u8]> for Instruction {
@@ -1397,105 +603,112 @@ impl From<&[u8]> for Instruction {
     }
 }
 
-impl fmt::Debug for Operation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Operation::NOP => write!(f, "NOP"),
-            Operation::PUSH(val) => write!(f, "PUSH\t{:#x?}", val),
-            Operation::JMP(val) => write!(f, "JMP\t{:#x?}", val),
-            Operation::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
-            Operation::STA(val) => write!(f, "STA\t{:#x?}", val),
-            Operation::LXI(lhs, rhs) => write!(f, "LXI\t{:#x?}, {:#x?}", lhs, rhs), 
-            Operation::STAX(val) => write!(f, "STAX\t{:#x?}", val),
-            Operation::INX(val) => write!(f, "INX\t{:#x?}", val),
-            Operation::INR(val) => write!(f, "INR\t{:#x?}", val),
-            Operation::DCR(val) => write!(f, "DCR\t{:#x?}", val),
-            Operation::RLC => write!(f, "RLC"),
-            Operation::DAD(val) => write!(f, "DAD\t{:#x?}", val),
-            Operation::LDAX(val) => write!(f, "LDAX\t{:#x?}", val), 
-            Operation::DCX(val) => write!(f, "DCX\t{:#x?}", val), 
-            Operation::RRC => write!(f, "RLC"),
-            Operation::RAL => write!(f, "RLC"), 
-            Operation::RAR => write!(f, "RLC"),
-            Operation::SHLD(val) => write!(f, "SHLD\t{:#x?}", val),
-            Operation::DAA => write!(f, "RLC"), 
-            Operation::LHLD(val) => write!(f, "LHLD\t{:#x?}", val),
-            Operation::CMA => write!(f, "RLC"), 
-            Operation::STC => write!(f, "RLC"),
-            Operation::LDA(val) => write!(f, "LDA\t{:#x?}", val),
-            Operation::CMC => write!(f, "RLC"),
-            Operation::MOV(lhs, rhs) => write!(f, "MOV\t{:#x?}, {:#x?}", lhs, rhs),
-            Operation::ACI(val) => write!(f, "ACI\t{:#x?}", val),
-            Operation::ADI(val) => write!(f, "ADI\t{:#x?}", val),
-            Operation::ANI(val) => write!(f, "ANI\t{:#x?}", val),
-            Operation::CALL(val) => write!(f, "CALL\t{:#x?}", val),
-            Operation::CC(val) => write!(f, "CC\t{:#x?}", val),
-            Operation::CM(val) => write!(f, "CM\t{:#x?}", val),
-            Operation::CMP(val) => write!(f, "CMP\t{:#x?}", val),
-            Operation::CNC(val) => write!(f, "CNC\t{:#x?}", val),
-            Operation::CP(val) => write!(f, "CP\t{:#x?}", val),
-            Operation::CPE(val) => write!(f, "CPE\t{:#x?}", val),
-            Operation::CPI(val) => write!(f, "CPI\t{:#x?}", val),
-            Operation::CPO(val) => write!(f, "CPO\t{:#x?}", val),
-            Operation::CNZ(val) => write!(f, "CNZ\t{:#x?}", val),
-            Operation::CZ(val) => write!(f, "CZ\t{:#x?}", val),
-            Operation::DI => write!(f, "DI"),
-            Operation::EI => write!(f, "EI"),
-            Operation::IN(val) => write!(f, "IN\t{:#x?}", val),
-            Operation::JC(val) => write!(f, "JC\t{:#x?}", val),
-            Operation::JM(val) => write!(f, "JM\t{:#x?}", val),
-            Operation::JNC(val) => write!(f, "JNC\t{:#x?}", val),
-            Operation::JNZ(val) => write!(f, "JNZ\t{:#x?}", val),
-            Operation::JP(val) => write!(f, "JP\t{:#x?}", val),
-            Operation::JPE(val) => write!(f, "JPE\t{:#x?}", val),
-            Operation::JPO(val) => write!(f, "JPO\t{:#x?}", val),
-            Operation::JZ(val) => write!(f, "JZ\t{:#x?}", val),
-            Operation::ORA(val) => write!(f, "ORA\t{:#x?}", val),
-            Operation::ORI(val) => write!(f, "ORI\t{:#x?}", val),
-            Operation::OUT(val) => write!(f, "OUT\t{:#x?}", val),
-            Operation::PCHL => write!(f, "PCHL"),
-            Operation::POP(val) => write!(f, "POP\t{:#x?}", val),
-            Operation::RC => write!(f, "RC"),
-            Operation::RET => write!(f, "RET"),
-            Operation::RM => write!(f, "RM"),
-            Operation::RNC => write!(f, "RNC"),
-            Operation::RNZ => write!(f, "RNZ"),
-            Operation::RP => write!(f, "RP"),
-            Operation::RPE => write!(f, "RPE"),
-            Operation::RPO => write!(f, "RPO"),
-            Operation::RST(val) => write!(f, "RST\t{:#x?}", val),
-            Operation::RZ => write!(f, "RZ"),
-            Operation::SBI(val) => write!(f, "SBI\t{:#x?}", val),
-            Operation::SPHL => write!(f, "SPHL"),
-            Operation::SUI(val) => write!(f, "SUI\t{:#x?}", val),
-            Operation::XCHG => write!(f, "XCHG"),
-            Operation::XRI(val) => write!(f, "XRI\t{:#x?}", val),
-            Operation::XTHL => write!(f, "XTHL"),
-            Operation::HLT => write!(f, "HLT"), 
-            Operation::ADD(val) => write!(f, "ADD\t{:#x?}", val),
-            Operation::ANA(val) => write!(f, "ANA\t{:#x?}", val),
-            Operation::ADC(val) => write!(f, "ADC\t{:#x?}", val),
-            Operation::SUB(val) => write!(f, "SUB\t{:#x?}", val),
-            Operation::SBB(val) => write!(f, "SBB\t{:#x?}", val),
-            Operation::XRA(val) => write!(f, "XRA\t{:#x?}", val),
-            _ => unimplemented!("Operation has not yet been implemented for fmt::Debug")
-        }
-    }
-}
-
-impl fmt::Debug for Operand {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Operand::D8(val) => write!(f, "{:#x?}", val),
-            Operand::A16(val) | Operand::D16(val) => write!(f, "{:#x?}", val),
-            _ => write!(f, "Debug printing is not implemented for {:#x?}", self)
-        }
-    }
-}
-
 impl fmt::Debug for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        return write!(f, "{:?}", self.op);
+        match self {
+            Instruction::NOP => write!(f, "NOP"),
+            Instruction::PUSH(val) => write!(f, "PUSH\t{:#x?}", val),
+            Instruction::JMP(val) => write!(f, "JMP\t{:#x?}", val),
+            Instruction::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
+            Instruction::STA(val) => write!(f, "STA\t{:#x?}", val),
+            Instruction::LXI(lhs, rhs) => write!(f, "LXI\t{:#x?}, {:#x?}", lhs, rhs),
+            Instruction::STAX(val) => write!(f, "STAX\t{:#x?}", val),
+            Instruction::INX(val) => write!(f, "INX\t{:#x?}", val),
+            Instruction::INR(val) => write!(f, "INR\t{:#x?}", val),
+            Instruction::DCR(val) => write!(f, "DCR\t{:#x?}", val),
+            Instruction::RLC => write!(f, "RLC"),
+            Instruction::DAD(val) => write!(f, "DAD\t{:#x?}", val),
+            Instruction::LDAX(val) => write!(f, "LDAX\t{:#x?}", val),
+            Instruction::DCX(val) => write!(f, "DCX\t{:#x?}", val),
+            Instruction::RRC => write!(f, "RLC"),
+            Instruction::RAL => write!(f, "RLC"),
+            Instruction::RAR => write!(f, "RLC"),
+            Instruction::SHLD(val) => write!(f, "SHLD\t{:#x?}", val),
+            Instruction::DAA => write!(f, "RLC"),
+            Instruction::LHLD(val) => write!(f, "LHLD\t{:#x?}", val),
+            Instruction::CMA => write!(f, "RLC"),
+            Instruction::STC => write!(f, "RLC"),
+            Instruction::LDA(val) => write!(f, "LDA\t{:#x?}", val),
+            Instruction::CMC => write!(f, "RLC"),
+            Instruction::MOV(lhs, rhs) => write!(f, "MOV\t{:#x?}, {:#x?}", lhs, rhs),
+            Instruction::HLT => write!(f, "HLT"),
+            Instruction::ADD(val) => write!(f, "ADD\t{:#x?}", val),
+            Instruction::ANA(val) => write!(f, "ANA\t{:#x?}", val),
+            Instruction::ADC(val) => write!(f, "ADC\t{:#x?}", val),
+            Instruction::SUB(val) => write!(f, "SUB\t{:#x?}", val),
+            Instruction::SBB(val) => write!(f, "SBB\t{:#x?}", val),
+            Instruction::XRA(val) => write!(f, "XRA\t{:#x?}", val),
+            Instruction::ACI(val) => write!(f, "ACI\t{:#x?}", val),
+            Instruction::ADI(val) => write!(f, "ADI\t{:#x?}", val),
+            Instruction::ANI(val) => write!(f, "ANI\t{:#x?}", val),
+            Instruction::CALL(val) => write!(f, "CALL\t{:#x?}", val),
+            Instruction::CC(val) => write!(f, "CC\t{:#x?}", val),
+            Instruction::CM(val) => write!(f, "CM\t{:#x?}", val),
+            Instruction::CMP(val) => write!(f, "CMP\t{:#x?}", val),
+            Instruction::CNC(val) => write!(f, "CNC\t{:#x?}", val),
+            Instruction::CP(val) => write!(f, "CP\t{:#x?}", val),
+            Instruction::CPE(val) => write!(f, "CPE\t{:#x?}", val),
+            Instruction::CPI(val) => write!(f, "CPI\t{:#x?}", val),
+            Instruction::CPO(val) => write!(f, "CPO\t{:#x?}", val),
+            Instruction::CNZ(val) => write!(f, "CNZ\t{:#x?}", val),
+            Instruction::CZ(val) => write!(f, "CZ\t{:#x?}", val),
+            Instruction::DI => write!(f, "DI"),
+            Instruction::EI => write!(f, "EI"),
+            Instruction::IN(val) => write!(f, "IN\t{:#x?}", val),
+            Instruction::JC(val) => write!(f, "JC\t{:#x?}", val),
+            Instruction::JM(val) => write!(f, "JM\t{:#x?}", val),
+            Instruction::JNC(val) => write!(f, "JNC\t{:#x?}", val),
+            Instruction::JNZ(val) => write!(f, "JNZ\t{:#x?}", val),
+            Instruction::JP(val) => write!(f, "JP\t{:#x?}", val),
+            Instruction::JPE(val) => write!(f, "JPE\t{:#x?}", val),
+            Instruction::JPO(val) => write!(f, "JPO\t{:#x?}", val),
+            Instruction::JZ(val) => write!(f, "JZ\t{:#x?}", val),
+            Instruction::ORA(val) => write!(f, "ORA\t{:#x?}", val),
+            Instruction::ORI(val) => write!(f, "ORI\t{:#x?}", val),
+            Instruction::OUT(val) => write!(f, "OUT\t{:#x?}", val),
+            Instruction::PCHL => write!(f, "PCHL"),
+            Instruction::POP(val) => write!(f, "POP\t{:#x?}", val),
+            Instruction::RC => write!(f, "RC"),
+            Instruction::RET => write!(f, "RET"),
+            Instruction::RM => write!(f, "RM"),
+            Instruction::RNC => write!(f, "RNC"),
+            Instruction::RNZ => write!(f, "RNZ"),
+            Instruction::RP => write!(f, "RP"),
+            Instruction::RPE => write!(f, "RPE"),
+            Instruction::RPO => write!(f, "RPO"),
+            Instruction::RST(val) => write!(f, "RST\t{:#x?}", val),
+            Instruction::RZ => write!(f, "RZ"),
+            Instruction::SBI(val) => write!(f, "SBI\t{:#x?}", val),
+            Instruction::SPHL => write!(f, "SPHL"),
+            Instruction::SUI(val) => write!(f, "SUI\t{:#x?}", val),
+            Instruction::XCHG => write!(f, "XCHG"),
+            Instruction::XRI(val) => write!(f, "XRI\t{:#x?}", val),
+            Instruction::XTHL => write!(f, "XTHL"),
+        }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cycles_m_target() {
+        assert_eq!(Instruction::MOV(Register::M, Register::B).cycles(), 7);
+    }
+
+    #[test]
+    fn test_cycles_m_source() {
+        assert_eq!(Instruction::MOV(Register::B, Register::M).cycles(), 7);
+    }
+
+    #[test]
+    fn test_cycles_m_neither() {
+        assert_eq!(Instruction::MOV(Register::B, Register::C).cycles(), 5);
+    }
+
+    #[test]
+    fn test_size() {
+        assert_eq!(Instruction::PUSH(Register::C).size(), 1);
+    }
+}
