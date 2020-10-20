@@ -16,7 +16,7 @@ pub enum Register {
 
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
 pub enum Instruction {
-        NOP,
+    NOP,
     JMP(u16),
     PUSH(Register),
     MVI(Register, u8),
@@ -270,7 +270,6 @@ impl Instruction {
             0xad => Instruction::XRA(Register::L),
             0xae => Instruction::XRA(Register::M),
             0xaf => Instruction::XRA(Register::A),
-
             0xb0 => Instruction::ORA(Register::B),
             0xb1 => Instruction::ORA(Register::C),
             0xb2 => Instruction::ORA(Register::D),
@@ -349,10 +348,6 @@ impl Instruction {
             0xfc => Instruction::CM(Instruction::read_imm16(bytes)),
             0xfe => Instruction::CPI(Instruction::read_imm8(bytes)),
             0xff => Instruction::RST(7),
-            _ => unimplemented!(
-                "opcode instruction {:#x?} has not yet been implemented",
-                opcode
-            ),
         };
 
         Ok(instruction)
