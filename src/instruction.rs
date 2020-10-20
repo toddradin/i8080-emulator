@@ -107,56 +107,56 @@ impl Instruction {
             0x03 => Instruction::INX(Register::B),
             0x04 => Instruction::INR(Register::B),
             0x05 => Instruction::DCR(Register::B),
-            0x06 => Instruction::MVI(Register::B, bytes[1]),
+            0x06 => Instruction::MVI(Register::B, Instruction::read_imm8(bytes)),
             0x07 => Instruction::RLC,
             0x09 => Instruction::DAD(Register::B),
             0x0a => Instruction::LDAX(Register::B),
             0x0b => Instruction::DCX(Register::B),
             0x0c => Instruction::INR(Register::C),
             0x0d => Instruction::DCR(Register::C),
-            0x0e => Instruction::MVI(Register::C, bytes[1]),
+            0x0e => Instruction::MVI(Register::C, Instruction::read_imm8(bytes)),
             0x0f => Instruction::RRC,
             0x11 => Instruction::LXI(Register::D, Instruction::read_imm16(bytes)),
             0x12 => Instruction::STAX(Register::D),
             0x13 => Instruction::INX(Register::D),
             0x14 => Instruction::INR(Register::D),
             0x15 => Instruction::DCR(Register::D),
-            0x16 => Instruction::MVI(Register::D, bytes[1]),
+            0x16 => Instruction::MVI(Register::D, Instruction::read_imm8(bytes)),
             0x17 => Instruction::RAL,
             0x19 => Instruction::DAD(Register::D),
             0x1a => Instruction::LDAX(Register::D),
             0x1b => Instruction::DCX(Register::D),
             0x1c => Instruction::INR(Register::E),
             0x1d => Instruction::DCR(Register::E),
-            0x1e => Instruction::MVI(Register::E, bytes[1]),
+            0x1e => Instruction::MVI(Register::E, Instruction::read_imm8(bytes)),
             0x1f => Instruction::RAR,
             0x21 => Instruction::LXI(Register::H, Instruction::read_imm16(bytes)),
             0x22 => Instruction::SHLD(Instruction::read_imm16(bytes)),
             0x23 => Instruction::INX(Register::H),
             0x24 => Instruction::INR(Register::H),
             0x25 => Instruction::DCR(Register::H),
-            0x26 => Instruction::MVI(Register::H, bytes[1]),
+            0x26 => Instruction::MVI(Register::H, Instruction::read_imm8(bytes)),
             0x27 => Instruction::DAA,
             0x29 => Instruction::DAD(Register::H),
             0x2a => Instruction::LHLD(Instruction::read_imm16(bytes)),
             0x2b => Instruction::DCX(Register::H),
             0x2c => Instruction::INR(Register::L),
             0x2d => Instruction::DCR(Register::L),
-            0x2e => Instruction::MVI(Register::L, bytes[1]),
+            0x2e => Instruction::MVI(Register::L, Instruction::read_imm8(bytes)),
             0x2f => Instruction::CMA,
             0x31 => Instruction::LXI(Register::SP, Instruction::read_imm16(bytes)),
             0x32 => Instruction::STA(Instruction::read_imm16(bytes)),
             0x33 => Instruction::INX(Register::SP),
             0x34 => Instruction::INR(Register::M),
             0x35 => Instruction::DCR(Register::M),
-            0x36 => Instruction::MVI(Register::M, bytes[1]),
+            0x36 => Instruction::MVI(Register::M, Instruction::read_imm8(bytes)),
             0x37 => Instruction::STC,
             0x39 => Instruction::DAD(Register::SP),
             0x3a => Instruction::LDA(Instruction::read_imm16(bytes)),
             0x3b => Instruction::DCX(Register::SP),
             0x3c => Instruction::INR(Register::A),
             0x3d => Instruction::DCR(Register::A),
-            0x3e => Instruction::MVI(Register::A, bytes[1]),
+            0x3e => Instruction::MVI(Register::A, Instruction::read_imm8(bytes)),
             0x3f => Instruction::CMC,
             0x40 => Instruction::MOV(Register::B, Register::B),
             0x41 => Instruction::MOV(Register::B, Register::C),
@@ -287,7 +287,7 @@ impl Instruction {
             0xbd => Instruction::CMP(Register::L),
             0xbe => Instruction::CMP(Register::M),
             0xbf => Instruction::CMP(Register::A),
-            //note: listed both cycle numbers (action taken/action not-taken) 
+            //note: listed both cycle numbers (action taken/action not-taken)
             //next to cycles where applicable.
             //https://pastraiser.com/cpu/i8080/i8080_opcodes.html
             0xc0 => Instruction::RNZ,
@@ -326,7 +326,7 @@ impl Instruction {
             0xe4 => Instruction::CPO(Instruction::read_imm16(bytes)),
             0xe5 => Instruction::PUSH(Register::H),
             0xe6 => Instruction::ANI(Instruction::read_imm8(bytes)),
-            0xe7 => Instruction::RST(4),        
+            0xe7 => Instruction::RST(4),
             0xe8 => Instruction::RPE,
             0xe9 => Instruction::PCHL,
             0xea => Instruction::JPE(Instruction::read_imm16(bytes)),
@@ -514,7 +514,7 @@ impl Instruction {
                 Register::M => 7,
                 _ => 4,
             },
-            Instruction::RNZ => 11,     // FIX ME  11/5
+            Instruction::RNZ => 11, // FIX ME  11/5
             Instruction::POP(_) => 10,
             Instruction::JNZ(_) => 10,
             Instruction::CNZ(target) => match target {
@@ -524,7 +524,7 @@ impl Instruction {
             },
             Instruction::ADI(_) => 7,
             Instruction::RST(_) => 11,
-            Instruction::RZ => 11,      // FIX ME 11/5
+            Instruction::RZ => 11, // FIX ME 11/5
             Instruction::RET => 10,
             Instruction::JZ(_) => 10,
             Instruction::CZ(target) => match target {
@@ -534,7 +534,7 @@ impl Instruction {
             },
             Instruction::CALL(_) => 17,
             Instruction::ACI(_) => 7,
-            Instruction::RNC => 11,     // FIX ME  11/5
+            Instruction::RNC => 11, // FIX ME  11/5
             Instruction::JNC(_) => 10,
             Instruction::OUT(_) => 10,
             Instruction::CNC(target) => match target {
@@ -543,7 +543,7 @@ impl Instruction {
                 _ => 17,
             },
             Instruction::SUI(_) => 7,
-            Instruction::RC => 11,      // FIX ME  11/5
+            Instruction::RC => 11, // FIX ME  11/5
             Instruction::JC(_) => 10,
             Instruction::IN(_) => 10,
             Instruction::CC(target) => match target {
@@ -552,7 +552,7 @@ impl Instruction {
                 _ => 11,
             },
             Instruction::SBI(_) => 7,
-            Instruction::RPO => 11,     // FIX ME  11/5 
+            Instruction::RPO => 11, // FIX ME  11/5
             Instruction::JPO(_) => 10,
             Instruction::XTHL => 18,
             Instruction::CPO(target) => match target {
@@ -561,7 +561,7 @@ impl Instruction {
                 _ => 17,
             },
             Instruction::ANI(_) => 7,
-            Instruction::RPE => 11,      // FIX ME  11/5
+            Instruction::RPE => 11, // FIX ME  11/5
             Instruction::PCHL => 5,
             Instruction::JPE(_) => 10,
             Instruction::XCHG => 5,
@@ -571,7 +571,7 @@ impl Instruction {
                 _ => 17,
             },
             Instruction::XRI(_) => 7,
-            Instruction::RP => 11,      // FIX ME  11/5
+            Instruction::RP => 11, // FIX ME  11/5
             Instruction::JP(_) => 10,
             Instruction::DI => 4,
             Instruction::CP(target) => match target {
@@ -580,7 +580,7 @@ impl Instruction {
                 _ => 17,
             },
             Instruction::ORI(_) => 7,
-            Instruction::RM => 11,      // FIX ME  11/5
+            Instruction::RM => 11, // FIX ME  11/5
             Instruction::SPHL => 5,
             Instruction::JM(_) => 10,
             Instruction::EI => 4,
