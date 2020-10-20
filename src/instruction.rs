@@ -17,7 +17,7 @@ pub enum Register {
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
 pub enum Instruction {
     NOP,
-    JMP(u16),
+    JMP,
     PUSH(Register),
     MVI(Register, u8),
     STA(u16),
@@ -292,7 +292,7 @@ impl Instruction {
             0xc0 => Instruction::RNZ,
             0xc1 => Instruction::POP(Register::B),
             0xc2 => Instruction::JNZ(Instruction::read_imm16(bytes)),
-            0xc3 | 0xcb => Instruction::JMP(Instruction::read_imm16(bytes)),
+            0xc3 | 0xcb => Instruction::JMP,
             0xc4 => Instruction::CNZ(Instruction::read_imm16(bytes)),
             0xc5 => Instruction::PUSH(Register::B),
             0xc6 => Instruction::ADI(Instruction::read_imm8(bytes)),
@@ -353,10 +353,10 @@ impl Instruction {
         Ok(instruction)
     }
 
-    pub fn size(&self) -> u8 {
+    pub fn size(&self) -> u16 {
         match *self {
             Instruction::NOP => 1,
-            Instruction::JMP(_) => 3,
+            Instruction::JMP => 3,
             Instruction::PUSH(_) => 1,
             Instruction::MVI(_, _) => 2,
             Instruction::STA(_) => 3,
@@ -439,7 +439,7 @@ impl Instruction {
     pub fn cycles(&self) -> u8 {
         match *self {
             Instruction::NOP => 4,
-            Instruction::JMP(_) => 10,
+            Instruction::JMP => 10,
             Instruction::PUSH(_) => 11,
             Instruction::MVI(target, _) => match target {
                 Register::M => 10,
@@ -608,7 +608,7 @@ impl fmt::Debug for Instruction {
         match self {
             Instruction::NOP => write!(f, "NOP"),
             Instruction::PUSH(val) => write!(f, "PUSH\t{:#x?}", val),
-            Instruction::JMP(val) => write!(f, "JMP\t{:#x?}", val),
+            Instruction::JMP => write!(f, "JMP"),
             Instruction::MVI(lhs, rhs) => write!(f, "MVI\t{:#x?}, {:#x?}", lhs, rhs),
             Instruction::STA(val) => write!(f, "STA\t{:#x?}", val),
             Instruction::LXI(lhs, rhs) => write!(f, "LXI\t{:#x?}, {:#x?}", lhs, rhs),

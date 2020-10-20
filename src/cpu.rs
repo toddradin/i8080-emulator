@@ -1,9 +1,9 @@
 use crate::condition_codes::ConditionCodes;
-use crate::instruction::{ Instruction, Operand, Register };
+use crate::instruction::{ Instruction, Register };
 
 #[allow(dead_code)]
 #[derive(Default)]
-struct Cpu {
+pub struct Cpu {
     // Registers
     a: u8,
     b: u8,
@@ -15,7 +15,7 @@ struct Cpu {
 
     // Pointers
     sp: u8,
-    pc: u8,
+    pub pc: u16,
 
     memory: Vec<u8>,
     condition_codes: ConditionCodes,
@@ -24,30 +24,42 @@ struct Cpu {
 
 impl Cpu {
     pub fn new() -> Self {
-        Self::default()
+        Cpu {
+            a: Default::default(),
+            b: Default::default(),
+            c: Default::default(),
+            d: Default::default(),
+            e: Default::default(),
+            h: Default::default(),
+            l: Default::default(),
+
+            sp: 0x00,
+            pc: 0x0,
+
+            memory: Default::default(),
+            condition_codes: Default::default(),
+            interrupts_enabled: true,
+        }
     }
 
-    pub fn execute(&self, instruction: Instruction) -> u8 {
-        match instruction {
-            Instruction::NOP => {},
-            Instruction::LXI(reg, val) => self.lxi(reg, val),
+    pub fn execute(&self, instruction: &Instruction) -> (u16, u8) {
+        let pc = match *instruction {
+            Instruction::NOP => self.pc.wrapping_add(instruction.size()),
+            Instruction::JMP(addr) => self.jmp(addr),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
             ),
-        }
-        instruction.cycles()
+        };
+
+        (pc, instruction.cycles())
     }
 }
 
 impl Cpu {
-    fn lxi(&self, reg: Register, operand: Operand) {
-        let val = match operand {
-            Operand::D16(val) => val,
-            _=> panic!()
-        };
-        let v = Instruction::to_bytes_16(val);
-        println!("{:?}", v);
+    fn jmp(&self, addr: u16) -> u16 {
+        let bytes = u16::to_le_bytes(addr);
+        ((bytes[1] as u16) << 8) | (bytes[0] as u16)
     }
 }
 
