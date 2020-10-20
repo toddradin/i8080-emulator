@@ -16,7 +16,7 @@ pub enum Register {
 
 // source: https://altairclone.com/downloads/manuals/8080%20Programmers%20Manual.pdf
 pub enum Instruction {
-    NOP,
+        NOP,
     JMP(u16),
     PUSH(Register),
     MVI(Register, u8),
