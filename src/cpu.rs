@@ -3,19 +3,25 @@ use crate::instruction::Instruction;
 use crate::registers::Registers;
 
 #[allow(dead_code)]
-#[derive(Default)]
 pub struct Cpu {
     registers: Registers,
     sp: u8,
     pub pc: u16,
-    memory: Vec<u8>, // This will eventually point to the loaded rom
+    pub memory: [u8; 0xFFFF],
     condition_codes: ConditionCodes,
     interrupts_enabled: bool,
 }
 
 impl Cpu {
     pub fn new() -> Self {
-        Default::default()
+        Cpu {
+            registers: Registers::new(),
+            sp: 0,
+            pc: 0,
+            memory: [0; 0xFFFF],
+            condition_codes: Default::default(),
+            interrupts_enabled: false,
+        }
     }
 
     pub fn execute(&self, instruction: &Instruction) -> (u16, u8) {
