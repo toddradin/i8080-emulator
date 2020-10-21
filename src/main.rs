@@ -9,7 +9,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut pc = 0;
     while pc < buffer.len() {
         let instr = Instruction::from(&buffer[pc..]);
-        println!("{:?}", instr);
+        instr.print(&buffer[pc..]);
         pc += instr.size() as usize;
     }
 
