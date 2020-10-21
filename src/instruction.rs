@@ -1,5 +1,3 @@
-use std::fmt;
-
 #[derive(Copy, Clone, Debug)]
 pub enum Register {
     A,
@@ -517,7 +515,7 @@ impl Instruction {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::ADI => 7,
             Instruction::RST(_) => 11,
             Instruction::RZ => 11, // FIX ME 11/5
@@ -527,17 +525,17 @@ impl Instruction {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::CALL => 17,
             Instruction::ACI => 7,
             Instruction::RNC => 11, // FIX ME  11/5
             Instruction::JNC => 10,
             Instruction::OUT => 10,
-            Instruction::CNC =>  {
+            Instruction::CNC => {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::SUI => 7,
             Instruction::RC => 11, // FIX ME  11/5
             Instruction::JC => 10,
@@ -546,7 +544,7 @@ impl Instruction {
                 // FIX ME
                 // cycles: 11 //11/5
                 11
-            },
+            }
             Instruction::SBI => 7,
             Instruction::RPO => 11, // FIX ME  11/5
             Instruction::JPO => 10,
@@ -555,7 +553,7 @@ impl Instruction {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::ANI => 7,
             Instruction::RPE => 11, // FIX ME  11/5
             Instruction::PCHL => 5,
@@ -565,7 +563,7 @@ impl Instruction {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::XRI => 7,
             Instruction::RP => 11, // FIX ME  11/5
             Instruction::JP => 10,
@@ -574,7 +572,7 @@ impl Instruction {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::ORI => 7,
             Instruction::RM => 11, // FIX ME  11/5
             Instruction::SPHL => 5,
@@ -584,7 +582,7 @@ impl Instruction {
                 // FIX ME
                 // cycles: 17 //17/11
                 17
-            },
+            }
             Instruction::CPI => 7,
         }
     }
