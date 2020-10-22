@@ -353,7 +353,7 @@ impl Instruction {
         Ok(instruction)
     }
 
-    pub fn size(&self) -> u8 {
+    pub fn size(&self) -> u16 {
         match *self {
             Instruction::NOP => 1,
             Instruction::JMP(_) => 3,
