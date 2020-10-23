@@ -2,6 +2,7 @@ use crate::condition_codes::ConditionCodes;
 use crate::instruction::Instruction;
 use crate::registers::Registers;
 
+// move memory to own file and work on that
 #[allow(dead_code)]
 pub struct Cpu {
     registers: Registers,
