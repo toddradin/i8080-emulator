@@ -28,12 +28,13 @@ fn main() -> Result<(), std::io::Error> {
     while cpu.pc < cpu.memory.len() as u16 {
         let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
         let (next_pc, cycles) = cpu.execute(&instr);
-        println!(
-            "{:#x?} \t\t\t next_pc: {:#x?} \t cycles: {}",
-            instr, next_pc, cycles
-        );
-
         cpu.pc = next_pc;
+
+        println!("{:?}", instr);
+        println! {"pc: {}, sp: {},", cpu.pc, cpu.sp};
+        println!("cycles: {}", cycles);
+        println!("{:?}", cpu.condition_codes);
+        println!("{:?}\n", cpu.registers);
     }
 
     Ok(())
