@@ -4,11 +4,11 @@ use crate::registers::Registers;
 
 #[allow(dead_code)]
 pub struct Cpu {
-    registers: Registers,
-    sp: u8,
+    pub registers: Registers,
+    pub sp: u8,
     pub pc: u16,
     pub memory: [u8; 0xFFFF],
-    condition_codes: ConditionCodes,
+    pub condition_codes: ConditionCodes,
     interrupts_enabled: bool,
 }
 
@@ -25,116 +25,93 @@ impl Cpu {
     }
 
     pub fn execute(&self, instruction: &Instruction) -> (u16, u8) {
-        let pc = match *instruction {
-            Instruction::NOP => self.pc.wrapping_add(instruction.size()),
-            Instruction::JMP(addr) => self.jmp(addr),
-            Instruction::JC(addr) => match self.jc(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JNC(addr) => match self.jnc(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JZ(addr) => match self.jz(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JNZ(addr) => match self.jnz(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JP(addr) => match self.jp(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JM(addr) => match self.jm(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JPE(addr) => match self.jpe(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::JPO(addr) => match self.jpo(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::PCHL => self.pchl(),
-            Instruction::CALL(addr) => self.call(addr),
-            Instruction::CC(addr) => match self.cc(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CNC(addr) => match self.cnc(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CZ(addr) => match self.cz(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CNZ(addr) => match self.cnz(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CP(addr) => match self.cp(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CM(addr) => match self.cm(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CPE(addr) => match self.cpe(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::CPO(addr) => match self.cpo(addr) {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RET => self.ret(),
-            Instruction::RC => match self.rc() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RNC => match self.rnc() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RZ => match self.rz() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RNZ => match self.rnz() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RP => match self.rp() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RM => match self.rm() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RPE => match self.rpe() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RPO => match self.rpo() {
-                None => self.pc.wrapping_add(instruction.size()),
-                Some(next_pc) => next_pc,
-            },
-            Instruction::RST(addr) => self.rst(addr),
+        // possibly rename this to something more appropriate if other
+        // instructions will use this
+        macro_rules! unconditional_instruction {
+            ($F:ident, $P:ident) => {
+                (self.$F($P), instruction.cycles())
+            };
+            ($F:ident) => {
+                (self.$F(), instruction.cycles())
+            };
+        }
+
+        macro_rules! conditional_branch {
+            ($F:ident, $P:ident) => {
+                match self.$F($P) {
+                    None => (
+                        self.pc.wrapping_add(instruction.size()),
+                        instruction.cycles(),
+                    ),
+                    Some(next_pc) => (next_pc, instruction.cycles()),
+                }
+            };
+        }
+
+        // When an instruction's action is taken, the instruction's higher
+        // cycle value is taken. Otherwise, take the lower value. The higher
+        // value is always the lower value + 6.
+        macro_rules! conditional_subroutine {
+            ($F:ident, $P:ident) => {
+                match self.$F($P) {
+                    None => (
+                        self.pc.wrapping_add(instruction.size()),
+                        instruction.cycles(),
+                    ),
+                    Some(next_pc) => (next_pc, instruction.cycles() + 6),
+                }
+            };
+            ($F:ident) => {
+                match self.$F() {
+                    None => (
+                        self.pc.wrapping_add(instruction.size()),
+                        instruction.cycles(),
+                    ),
+                    Some(next_pc) => (next_pc, instruction.cycles() + 6),
+                }
+            };
+        }
+
+        let (pc, cycles) = match *instruction {
+            Instruction::NOP => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::JMP(addr) => unconditional_instruction!(jmp, addr),
+            Instruction::JC(addr) => conditional_branch!(jc, addr),
+            Instruction::JNC(addr) => conditional_branch!(jnc, addr),
+            Instruction::JZ(addr) => conditional_branch!(jz, addr),
+            Instruction::JNZ(addr) => conditional_branch!(jnz, addr),
+            Instruction::JP(addr) => conditional_branch!(jp, addr),
+            Instruction::JM(addr) => conditional_branch!(jm, addr),
+            Instruction::JPE(addr) => conditional_branch!(jpe, addr),
+            Instruction::JPO(addr) => conditional_branch!(jpo, addr),
+            Instruction::PCHL => unconditional_instruction!(pchl),
+            Instruction::CALL(addr) => unconditional_instruction!(call, addr),
+            Instruction::CC(addr) => conditional_subroutine!(cc, addr),
+            Instruction::CNC(addr) => conditional_subroutine!(cnc, addr),
+            Instruction::CZ(addr) => conditional_subroutine!(cz, addr),
+            Instruction::CNZ(addr) => conditional_subroutine!(cnz, addr),
+            Instruction::CP(addr) => conditional_subroutine!(cp, addr),
+            Instruction::CM(addr) => conditional_subroutine!(cm, addr),
+            Instruction::CPE(addr) => conditional_subroutine!(cpe, addr),
+            Instruction::CPO(addr) => conditional_subroutine!(cpo, addr),
+            Instruction::RET => unconditional_instruction!(ret),
+            Instruction::RC => conditional_subroutine!(rc),
+            Instruction::RNC => conditional_subroutine!(rnc),
+            Instruction::RZ => conditional_subroutine!(rz),
+            Instruction::RNZ => conditional_subroutine!(rnz),
+            Instruction::RP => conditional_subroutine!(rp),
+            Instruction::RM => conditional_subroutine!(rm),
+            Instruction::RPE => conditional_subroutine!(rpe),
+            Instruction::RPO => conditional_subroutine!(rpo),
+            Instruction::RST(addr) => unconditional_instruction!(rst, addr),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
             ),
         };
-
-        (pc, instruction.cycles())
+        (pc, cycles)
     }
 }
 
