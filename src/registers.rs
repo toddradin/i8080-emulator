@@ -11,7 +11,15 @@ pub struct Registers {
 
 impl Registers {
     pub fn new() -> Self {
-        Default::default()
+        Registers {
+            a: 0,
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            h: 0,
+            l: 0,
+        }
     }
 
     pub fn get_hl(&self) -> u16 {

@@ -2,11 +2,10 @@ use crate::condition_codes::ConditionCodes;
 use crate::instruction::Instruction;
 use crate::registers::Registers;
 
-// move memory to own file and work on that
 #[allow(dead_code)]
 pub struct Cpu {
     registers: Registers,
-    sp: u8,
+    sp: u16,
     pub pc: u16,
     pub memory: [u8; 0xFFFF],
     condition_codes: ConditionCodes,
@@ -17,7 +16,7 @@ impl Cpu {
     pub fn new() -> Self {
         Cpu {
             registers: Registers::new(),
-            sp: 0,
+            sp: 0xFFFF,
             pc: 0,
             memory: [0; 0xFFFF],
             condition_codes: Default::default(),
@@ -135,7 +134,7 @@ impl Cpu {
             ),
         };
 
-        (pc, instruction.cycles())
+        (pc, instruction.cycles(false))
     }
 }
 
@@ -379,6 +378,6 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::NOP;
         let (next_pc, cycles) = cpu.execute(&instr);
-        assert_eq!(cycles, Instruction::NOP.cycles());
+        assert_eq!(cycles, Instruction::NOP.cycles(false));
     }
 }

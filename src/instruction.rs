@@ -436,7 +436,7 @@ impl Instruction {
         }
     }
 
-    pub fn cycles(&self) -> u8 {
+    pub fn cycles(&self, conditional: bool) -> u8 {
         match *self {
             Instruction::NOP => 4,
             Instruction::JMP(_) => 10,
@@ -509,81 +509,49 @@ impl Instruction {
                 Register::M => 7,
                 _ => 4,
             },
-            Instruction::RNZ => 11, // FIX ME  11/5
+            Instruction::RNZ => if conditional {11} else {5},
             Instruction::POP(_) => 10,
             Instruction::JNZ(_) => 10,
-            Instruction::CNZ(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CNZ(_) => if conditional {17} else {11},
             Instruction::ADI(_) => 7,
             Instruction::RST(_) => 11,
-            Instruction::RZ => 11, // FIX ME 11/5
+            Instruction::RZ => if conditional {11} else {5},
             Instruction::RET => 10,
             Instruction::JZ(_) => 10,
-            Instruction::CZ(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CZ(_) => if conditional {17} else {11},
             Instruction::CALL(_) => 17,
             Instruction::ACI(_) => 7,
-            Instruction::RNC => 11, // FIX ME  11/5
+            Instruction::RNC => if conditional {11} else {5},
             Instruction::JNC(_) => 10,
             Instruction::OUT(_) => 10,
-            Instruction::CNC(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CNC(_) => if conditional {17} else {11},
             Instruction::SUI(_) => 7,
-            Instruction::RC => 11, // FIX ME  11/5
+            Instruction::RC => if conditional {11} else {5},
             Instruction::JC(_) => 10,
             Instruction::IN(_) => 10,
-            Instruction::CC(target) => match target {
-                // FIX ME
-                // cycles: 11 //11/5
-                _ => 11,
-            },
+            Instruction::CC(_) => if conditional {11} else {5},
             Instruction::SBI(_) => 7,
-            Instruction::RPO => 11, // FIX ME  11/5
+            Instruction::RPO => if conditional {11} else {5},
             Instruction::JPO(_) => 10,
             Instruction::XTHL => 18,
-            Instruction::CPO(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CPO(_) => if conditional {17} else {11},
             Instruction::ANI(_) => 7,
-            Instruction::RPE => 11, // FIX ME  11/5
+            Instruction::RPE => if conditional {11} else {5},
             Instruction::PCHL => 5,
             Instruction::JPE(_) => 10,
             Instruction::XCHG => 5,
-            Instruction::CPE(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CPE(_) => if conditional {17} else {11},
             Instruction::XRI(_) => 7,
-            Instruction::RP => 11, // FIX ME  11/5
+            Instruction::RP => if conditional {11} else {5},
             Instruction::JP(_) => 10,
             Instruction::DI => 4,
-            Instruction::CP(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CP(_) => if conditional {17} else {11},
             Instruction::ORI(_) => 7,
-            Instruction::RM => 11, // FIX ME  11/5
+            Instruction::RM => if conditional {11} else {5},
             Instruction::SPHL => 5,
             Instruction::JM(_) => 10,
             Instruction::EI => 4,
-            Instruction::CM(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CM(_) => if conditional {17} else {11},
             Instruction::CPI(_) => 7,
         }
     }
@@ -694,17 +662,17 @@ mod tests {
 
     #[test]
     fn test_cycles_m_target() {
-        assert_eq!(Instruction::MOV(Register::M, Register::B).cycles(), 7);
+        assert_eq!(Instruction::MOV(Register::M, Register::B).cycles(false), 7);
     }
 
     #[test]
     fn test_cycles_m_source() {
-        assert_eq!(Instruction::MOV(Register::B, Register::M).cycles(), 7);
+        assert_eq!(Instruction::MOV(Register::B, Register::M).cycles(false), 7);
     }
 
     #[test]
     fn test_cycles_m_neither() {
-        assert_eq!(Instruction::MOV(Register::B, Register::C).cycles(), 5);
+        assert_eq!(Instruction::MOV(Register::B, Register::C).cycles(false), 5);
     }
 
     #[test]
