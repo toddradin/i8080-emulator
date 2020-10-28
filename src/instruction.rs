@@ -509,81 +509,49 @@ impl Instruction {
                 Register::M => 7,
                 _ => 4,
             },
-            Instruction::RNZ => 11, // FIX ME  11/5
+            Instruction::RNZ => 5,
             Instruction::POP(_) => 10,
             Instruction::JNZ(_) => 10,
-            Instruction::CNZ(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CNZ(_) => 11,
             Instruction::ADI(_) => 7,
             Instruction::RST(_) => 11,
-            Instruction::RZ => 11, // FIX ME 11/5
+            Instruction::RZ => 5,
             Instruction::RET => 10,
             Instruction::JZ(_) => 10,
-            Instruction::CZ(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CZ(_) => 11,
             Instruction::CALL(_) => 17,
             Instruction::ACI(_) => 7,
-            Instruction::RNC => 11, // FIX ME  11/5
+            Instruction::RNC => 5,
             Instruction::JNC(_) => 10,
             Instruction::OUT(_) => 10,
-            Instruction::CNC(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CNC(_) => 11,
             Instruction::SUI(_) => 7,
-            Instruction::RC => 11, // FIX ME  11/5
+            Instruction::RC => 5,
             Instruction::JC(_) => 10,
             Instruction::IN(_) => 10,
-            Instruction::CC(target) => match target {
-                // FIX ME
-                // cycles: 11 //11/5
-                _ => 11,
-            },
+            Instruction::CC(_) => 11,
             Instruction::SBI(_) => 7,
-            Instruction::RPO => 11, // FIX ME  11/5
+            Instruction::RPO => 5,
             Instruction::JPO(_) => 10,
             Instruction::XTHL => 18,
-            Instruction::CPO(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CPO(_) => 11,
             Instruction::ANI(_) => 7,
-            Instruction::RPE => 11, // FIX ME  11/5
+            Instruction::RPE => 5,
             Instruction::PCHL => 5,
             Instruction::JPE(_) => 10,
             Instruction::XCHG => 5,
-            Instruction::CPE(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CPE(_) => 11,
             Instruction::XRI(_) => 7,
-            Instruction::RP => 11, // FIX ME  11/5
+            Instruction::RP => 5,
             Instruction::JP(_) => 10,
             Instruction::DI => 4,
-            Instruction::CP(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CP(_) => 11,
             Instruction::ORI(_) => 7,
-            Instruction::RM => 11, // FIX ME  11/5
+            Instruction::RM => 5,
             Instruction::SPHL => 5,
             Instruction::JM(_) => 10,
             Instruction::EI => 4,
-            Instruction::CM(target) => match target {
-                // FIX ME
-                // cycles: 17 //17/11
-                _ => 17,
-            },
+            Instruction::CM(_) => 11,
             Instruction::CPI(_) => 7,
         }
     }

@@ -1,4 +1,4 @@
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ConditionCodes {
     pub z: bool,
     pub s: bool,
