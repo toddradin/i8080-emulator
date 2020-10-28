@@ -1,5 +1,5 @@
 use crate::condition_codes::ConditionCodes;
-use crate::instruction::Instruction;
+use crate::instruction::{Instruction, Operand};
 use crate::registers::Registers;
 
 #[allow(dead_code)]
@@ -24,21 +24,21 @@ impl Cpu {
         }
     }
 
-    pub fn execute(&self, instruction: &Instruction) -> (u16, u8) {
+    pub fn execute(&mut self, instruction: &Instruction) -> (u16, u8) {
         // possibly rename this to something more appropriate if other
         // instructions will use this
         macro_rules! unconditional_instruction {
-            ($F:ident, $P:ident) => {
-                (self.$F($P), instruction.cycles())
+            ($func:ident, $addr:ident) => {
+                (self.$func($addr), instruction.cycles())
             };
-            ($F:ident) => {
-                (self.$F(), instruction.cycles())
+            ($func:ident) => {
+                (self.$func(), instruction.cycles())
             };
         }
 
         macro_rules! conditional_branch {
-            ($F:ident, $P:ident) => {
-                match self.$F($P) {
+            ($func:ident, $addr:ident) => {
+                match self.$func($addr) {
                     None => (
                         self.pc.wrapping_add(instruction.size()),
                         instruction.cycles(),
@@ -52,8 +52,8 @@ impl Cpu {
         // cycle value is taken. Otherwise, take the lower value. The higher
         // value is always the lower value + 6.
         macro_rules! conditional_subroutine {
-            ($F:ident, $P:ident) => {
-                match self.$F($P) {
+            ($func:ident, $addr:ident) => {
+                match self.$func($addr) {
                     None => (
                         self.pc.wrapping_add(instruction.size()),
                         instruction.cycles(),
@@ -61,13 +61,42 @@ impl Cpu {
                     Some(next_pc) => (next_pc, instruction.cycles() + 6),
                 }
             };
-            ($F:ident) => {
-                match self.$F() {
+            ($func:ident) => {
+                match self.$func() {
                     None => (
                         self.pc.wrapping_add(instruction.size()),
                         instruction.cycles(),
                     ),
                     Some(next_pc) => (next_pc, instruction.cycles() + 6),
+                }
+            };
+        }
+
+        macro_rules! logical_non_immediate {
+            ($func:ident, $operand: ident) => {
+                {
+                    let val = match $operand {
+                        Operand::A => self.registers.a,
+                        Operand::B => self.registers.b,
+                        Operand::C => self.registers.c,
+                        Operand::D => self.registers.d,
+                        Operand::E => self.registers.e,
+                        Operand::H => self.registers.h,
+                        Operand::L => self.registers.l,
+                        Operand::M => self.memory[self.registers.get_hl() as usize],
+                        _ => panic!("{:#x?} only accepts registers or a memory location", instruction)
+                    };
+                    self.$func(val);
+                    (self.pc.wrapping_add(instruction.size()), instruction.cycles())
+                }
+            };
+        }
+        
+        macro_rules! logical_immediate {
+            ($func:ident, $val: ident) => {
+                {
+                    self.$func($val);
+                    (self.pc.wrapping_add(instruction.size()), instruction.cycles())
                 }
             };
         }
@@ -106,6 +135,14 @@ impl Cpu {
             Instruction::RPE => conditional_subroutine!(rpe),
             Instruction::RPO => conditional_subroutine!(rpo),
             Instruction::RST(addr) => unconditional_instruction!(rst, addr),
+            Instruction::ANA(op) => logical_non_immediate!(ana, op),
+            Instruction::XRA(op) => logical_non_immediate!(xra, op),
+            Instruction::ORA(op) => logical_non_immediate!(ora, op),
+            Instruction::CMP(op) => logical_non_immediate!(cmp, op),
+            Instruction::ANI(val) => logical_immediate!(ani, val),
+            Instruction::XRI(val) => logical_immediate!(xri, val),
+            Instruction::ORI(val) => logical_immediate!(ori, val),
+            Instruction::CPI(val) => logical_immediate!(cpi, val),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -121,7 +158,7 @@ impl Cpu {
     }
 
     fn jc(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.cy {
+        if self.condition_codes.carry {
             Some(self.jump(addr))
         } else {
             None
@@ -129,7 +166,7 @@ impl Cpu {
     }
 
     fn jnc(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.cy {
+        if !self.condition_codes.carry {
             Some(self.jump(addr))
         } else {
             None
@@ -137,7 +174,7 @@ impl Cpu {
     }
 
     fn jz(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.z {
+        if self.condition_codes.zero {
             Some(self.jump(addr))
         } else {
             None
@@ -145,7 +182,7 @@ impl Cpu {
     }
 
     fn jnz(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.z {
+        if !self.condition_codes.zero {
             Some(self.jump(addr))
         } else {
             None
@@ -153,7 +190,7 @@ impl Cpu {
     }
 
     fn jp(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.s {
+        if !self.condition_codes.sign {
             Some(self.jump(addr))
         } else {
             None
@@ -161,7 +198,7 @@ impl Cpu {
     }
 
     fn jm(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.s {
+        if self.condition_codes.sign {
             Some(self.jump(addr))
         } else {
             None
@@ -169,7 +206,7 @@ impl Cpu {
     }
 
     fn jpe(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.p {
+        if self.condition_codes.parity {
             Some(self.jump(addr))
         } else {
             None
@@ -177,7 +214,7 @@ impl Cpu {
     }
 
     fn jpo(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.p {
+        if !self.condition_codes.parity {
             Some(self.jump(addr))
         } else {
             None
@@ -193,7 +230,7 @@ impl Cpu {
     }
 
     fn cc(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.cy {
+        if self.condition_codes.carry {
             Some(self.call(addr))
         } else {
             None
@@ -201,7 +238,7 @@ impl Cpu {
     }
 
     fn cnc(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.cy {
+        if !self.condition_codes.carry {
             Some(self.call(addr))
         } else {
             None
@@ -209,7 +246,7 @@ impl Cpu {
     }
 
     fn cz(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.z {
+        if self.condition_codes.zero {
             Some(self.call(addr))
         } else {
             None
@@ -217,7 +254,7 @@ impl Cpu {
     }
 
     fn cnz(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.z {
+        if !self.condition_codes.zero {
             Some(self.call(addr))
         } else {
             None
@@ -225,7 +262,7 @@ impl Cpu {
     }
 
     fn cp(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.s {
+        if !self.condition_codes.sign {
             Some(self.call(addr))
         } else {
             None
@@ -233,7 +270,7 @@ impl Cpu {
     }
 
     fn cm(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.s {
+        if self.condition_codes.sign {
             Some(self.call(addr))
         } else {
             None
@@ -241,7 +278,7 @@ impl Cpu {
     }
 
     fn cpe(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.p {
+        if self.condition_codes.parity {
             Some(self.call(addr))
         } else {
             None
@@ -249,7 +286,7 @@ impl Cpu {
     }
 
     fn cpo(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.p {
+        if !self.condition_codes.parity {
             Some(self.call(addr))
         } else {
             None
@@ -263,7 +300,7 @@ impl Cpu {
     }
 
     fn rc(&self) -> Option<u16> {
-        if self.condition_codes.cy {
+        if self.condition_codes.carry {
             Some(self.ret())
         } else {
             None
@@ -271,7 +308,7 @@ impl Cpu {
     }
 
     fn rnc(&self) -> Option<u16> {
-        if !self.condition_codes.cy {
+        if !self.condition_codes.carry {
             Some(self.ret())
         } else {
             None
@@ -279,7 +316,7 @@ impl Cpu {
     }
 
     fn rz(&self) -> Option<u16> {
-        if self.condition_codes.z {
+        if self.condition_codes.zero {
             Some(self.ret())
         } else {
             None
@@ -287,7 +324,7 @@ impl Cpu {
     }
 
     fn rnz(&self) -> Option<u16> {
-        if !self.condition_codes.z {
+        if !self.condition_codes.zero {
             Some(self.ret())
         } else {
             None
@@ -295,7 +332,7 @@ impl Cpu {
     }
 
     fn rp(&self) -> Option<u16> {
-        if !self.condition_codes.s {
+        if !self.condition_codes.sign {
             Some(self.ret())
         } else {
             None
@@ -303,7 +340,7 @@ impl Cpu {
     }
 
     fn rm(&self) -> Option<u16> {
-        if self.condition_codes.s {
+        if self.condition_codes.sign {
             Some(self.ret())
         } else {
             None
@@ -311,7 +348,7 @@ impl Cpu {
     }
 
     fn rpe(&self) -> Option<u16> {
-        if self.condition_codes.p {
+        if self.condition_codes.parity {
             Some(self.ret())
         } else {
             None
@@ -319,7 +356,7 @@ impl Cpu {
     }
 
     fn rpo(&self) -> Option<u16> {
-        if !self.condition_codes.p {
+        if !self.condition_codes.parity {
             Some(self.ret())
         } else {
             None
@@ -342,6 +379,74 @@ impl Cpu {
     fn pop(&self) -> u16 {
         // TODO
         0
+    }
+
+    fn ana(&mut self, val: u8) {
+        self.and(val)
+    }
+
+    fn ani(&mut self, val: u8) {
+        self.and(val)
+    }
+    
+    fn xra(&mut self, val: u8) {
+        self.xor(val)
+    }
+
+    fn xri(&mut self, val: u8) {
+        self.xor(val)
+    }
+    
+    fn ora(&mut self, val: u8) {
+        self.or(val)
+    }
+
+    fn ori(&mut self, val: u8) {
+        self.or(val)
+    }
+    
+    fn cmp(&mut self, val: u8) {
+        self.compare(val)
+    }
+
+    fn cpi(&mut self, val: u8) {
+        self.compare(val)
+    }
+
+    fn and(&mut self, val: u8) {
+        self.registers.a = self.registers.a & val;
+
+        self.condition_codes.reset_carry();
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+    fn xor(&mut self, val: u8) {
+        self.registers.a = self.registers.a ^ val;
+        
+        self.condition_codes.reset_carry();
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+    
+    fn or(&mut self, val: u8) {
+        self.registers.a = self.registers.a | val;
+
+        self.condition_codes.reset_carry();
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+    
+    fn compare(&mut self, val: u8) {
+        let val = self.registers.a.wrapping_sub(val);
+
+        self.condition_codes.set_carry(self.registers.a < val);
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
     }
 }
 
