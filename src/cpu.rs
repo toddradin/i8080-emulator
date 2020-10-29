@@ -27,7 +27,7 @@ impl Cpu {
     pub fn execute(&mut self, instruction: &Instruction) -> (u16, u8) {
         // possibly rename this to something more appropriate if other
         // instructions will use this
-        macro_rules! unconditional_instruction {
+        macro_rules! unconditional {
             ($func:ident, $addr:ident) => {
                 (self.$func($addr), instruction.cycles())
             };
@@ -73,32 +73,47 @@ impl Cpu {
         }
 
         macro_rules! logical_non_immediate {
-            ($func:ident, $operand: ident) => {
-                {
-                    let val = match $operand {
-                        Operand::A => self.registers.a,
-                        Operand::B => self.registers.b,
-                        Operand::C => self.registers.c,
-                        Operand::D => self.registers.d,
-                        Operand::E => self.registers.e,
-                        Operand::H => self.registers.h,
-                        Operand::L => self.registers.l,
-                        Operand::M => self.memory[self.registers.get_hl() as usize],
-                        _ => panic!("{:#x?} only accepts registers or a memory location", instruction)
-                    };
-                    self.$func(val);
-                    (self.pc.wrapping_add(instruction.size()), instruction.cycles())
-                }
-            };
+            ($func:ident, $operand: ident) => {{
+                let val = match $operand {
+                    Operand::A => self.registers.a,
+                    Operand::B => self.registers.b,
+                    Operand::C => self.registers.c,
+                    Operand::D => self.registers.d,
+                    Operand::E => self.registers.e,
+                    Operand::H => self.registers.h,
+                    Operand::L => self.registers.l,
+                    Operand::M => self.memory[self.registers.get_hl() as usize],
+                    _ => panic!(
+                        "{:#x?} only accepts registers or a memory location",
+                        instruction
+                    ),
+                };
+                self.$func(val);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
         }
-        
+
         macro_rules! logical_immediate {
-            ($func:ident, $val: ident) => {
-                {
-                    self.$func($val);
-                    (self.pc.wrapping_add(instruction.size()), instruction.cycles())
-                }
-            };
+            ($func:ident, $val: ident) => {{
+                self.$func($val);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
+        }
+
+        macro_rules! modify_flags_registers {
+            ($func:ident) => {{
+                self.$func();
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
         }
 
         let (pc, cycles) = match *instruction {
@@ -106,7 +121,7 @@ impl Cpu {
                 self.pc.wrapping_add(instruction.size()),
                 instruction.cycles(),
             ),
-            Instruction::JMP(addr) => unconditional_instruction!(jmp, addr),
+            Instruction::JMP(addr) => unconditional!(jmp, addr),
             Instruction::JC(addr) => conditional_branch!(jc, addr),
             Instruction::JNC(addr) => conditional_branch!(jnc, addr),
             Instruction::JZ(addr) => conditional_branch!(jz, addr),
@@ -115,8 +130,8 @@ impl Cpu {
             Instruction::JM(addr) => conditional_branch!(jm, addr),
             Instruction::JPE(addr) => conditional_branch!(jpe, addr),
             Instruction::JPO(addr) => conditional_branch!(jpo, addr),
-            Instruction::PCHL => unconditional_instruction!(pchl),
-            Instruction::CALL(addr) => unconditional_instruction!(call, addr),
+            Instruction::PCHL => unconditional!(pchl),
+            Instruction::CALL(addr) => unconditional!(call, addr),
             Instruction::CC(addr) => conditional_subroutine!(cc, addr),
             Instruction::CNC(addr) => conditional_subroutine!(cnc, addr),
             Instruction::CZ(addr) => conditional_subroutine!(cz, addr),
@@ -125,7 +140,7 @@ impl Cpu {
             Instruction::CM(addr) => conditional_subroutine!(cm, addr),
             Instruction::CPE(addr) => conditional_subroutine!(cpe, addr),
             Instruction::CPO(addr) => conditional_subroutine!(cpo, addr),
-            Instruction::RET => unconditional_instruction!(ret),
+            Instruction::RET => unconditional!(ret),
             Instruction::RC => conditional_subroutine!(rc),
             Instruction::RNC => conditional_subroutine!(rnc),
             Instruction::RZ => conditional_subroutine!(rz),
@@ -134,7 +149,7 @@ impl Cpu {
             Instruction::RM => conditional_subroutine!(rm),
             Instruction::RPE => conditional_subroutine!(rpe),
             Instruction::RPO => conditional_subroutine!(rpo),
-            Instruction::RST(addr) => unconditional_instruction!(rst, addr),
+            Instruction::RST(addr) => unconditional!(rst, addr),
             Instruction::ANA(op) => logical_non_immediate!(ana, op),
             Instruction::XRA(op) => logical_non_immediate!(xra, op),
             Instruction::ORA(op) => logical_non_immediate!(ora, op),
@@ -143,6 +158,14 @@ impl Cpu {
             Instruction::XRI(val) => logical_immediate!(xri, val),
             Instruction::ORI(val) => logical_immediate!(ori, val),
             Instruction::CPI(val) => logical_immediate!(cpi, val),
+            Instruction::RLC => modify_flags_registers!(rlc),
+            Instruction::RRC => modify_flags_registers!(rrc),
+            Instruction::RAL => modify_flags_registers!(ral),
+            Instruction::RAR => modify_flags_registers!(rar),
+            Instruction::CMA => modify_flags_registers!(cma),
+            Instruction::STC => modify_flags_registers!(stc),
+            Instruction::CMC => modify_flags_registers!(cmc),
+            Instruction::DAA => modify_flags_registers!(daa),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -388,7 +411,7 @@ impl Cpu {
     fn ani(&mut self, val: u8) {
         self.and(val)
     }
-    
+
     fn xra(&mut self, val: u8) {
         self.xor(val)
     }
@@ -396,7 +419,7 @@ impl Cpu {
     fn xri(&mut self, val: u8) {
         self.xor(val)
     }
-    
+
     fn ora(&mut self, val: u8) {
         self.or(val)
     }
@@ -404,7 +427,7 @@ impl Cpu {
     fn ori(&mut self, val: u8) {
         self.or(val)
     }
-    
+
     fn cmp(&mut self, val: u8) {
         self.compare(val)
     }
@@ -424,13 +447,13 @@ impl Cpu {
 
     fn xor(&mut self, val: u8) {
         self.registers.a = self.registers.a ^ val;
-        
+
         self.condition_codes.reset_carry();
         self.condition_codes.set_sign(self.registers.a);
         self.condition_codes.set_zero(self.registers.a);
         self.condition_codes.set_parity(self.registers.a);
     }
-    
+
     fn or(&mut self, val: u8) {
         self.registers.a = self.registers.a | val;
 
@@ -439,11 +462,67 @@ impl Cpu {
         self.condition_codes.set_zero(self.registers.a);
         self.condition_codes.set_parity(self.registers.a);
     }
-    
+
     fn compare(&mut self, val: u8) {
         let val = self.registers.a.wrapping_sub(val);
 
         self.condition_codes.set_carry(self.registers.a < val);
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+    fn rlc(&mut self) {
+        let carry = (self.registers.a & 0x80) >> 7;
+        self.registers.a = self.registers.a << 1 | carry;
+        self.condition_codes.carry = (self.registers.a & 0x01) > 0;
+    }
+
+    fn rrc(&mut self) {
+        let carry = (self.registers.a & 0x80) << 7;
+        self.registers.a = self.registers.a >> 1 | carry;
+        self.condition_codes.carry = (self.registers.a & 0x80) > 0;
+    }
+
+    fn ral(&mut self) {
+        let carry_bit = if self.condition_codes.carry { 1 } else { 0 };
+        let high_bit = self.registers.a & 0x80;
+        self.registers.a = (self.registers.a << 1) | carry_bit;
+        self.condition_codes.carry = high_bit == 0x80;
+    }
+
+    fn rar(&mut self) {
+        let carry_bit = if self.condition_codes.carry { 1 } else { 0 };
+        let low_bit = self.registers.a & 0x01;
+        self.registers.a = (self.registers.a >> 1) | carry_bit;
+        self.condition_codes.carry = low_bit == 0x01;
+    }
+
+    fn cma(&mut self) {
+        self.registers.a = !self.registers.a
+    }
+
+    fn stc(&mut self) {
+        self.condition_codes.carry = true
+    }
+
+    fn cmc(&mut self) {
+        self.condition_codes.carry = !self.condition_codes.carry
+    }
+
+    fn daa(&mut self) {
+        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.accumulator {
+            let high_bit = self.registers.a & 0x8;
+            self.registers.a = self.registers.a.wrapping_add(0x06);
+            self.condition_codes.accumulator = (self.registers.a & 0x8) < high_bit;
+        }
+        if (self.registers.a & 0xF0 > 0x90) || self.condition_codes.carry {
+            let high_bit = (self.registers.a >> 4) & 0x8;
+            self.registers.a = self.registers.a.wrapping_add(0x60);
+            if ((self.registers.a >> 4) & 0x8) < high_bit {
+                self.condition_codes.set_carry(true);
+            }
+        }
         self.condition_codes.set_sign(self.registers.a);
         self.condition_codes.set_zero(self.registers.a);
         self.condition_codes.set_parity(self.registers.a);

@@ -11,17 +11,17 @@ impl ConditionCodes {
     pub fn set_carry(&mut self, carry: bool) {
         self.carry = carry
     }
-    
+
     pub fn reset_carry(&mut self) {
-        self.set_carry(false)
+        self.carry = false
     }
 
     pub fn set_sign(&mut self, val: u8) {
         self.sign = (val & 0x80) == 0x80
     }
-    
+
     pub fn set_zero(&mut self, val: u8) {
-        self.zero = val == 0
+        self.zero = (val & 0xFF) == 0
     }
 
     pub fn set_parity(&mut self, val: u8) {
