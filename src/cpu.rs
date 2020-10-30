@@ -1,5 +1,5 @@
 use crate::condition_codes::ConditionCodes;
-use crate::instruction::Instruction;
+use crate::instruction::{Instruction, Operand};
 use crate::registers::Registers;
 
 #[allow(dead_code)]
@@ -24,21 +24,21 @@ impl Cpu {
         }
     }
 
-    pub fn execute(&self, instruction: &Instruction) -> (u16, u8) {
+    pub fn execute(&mut self, instruction: &Instruction) -> (u16, u8) {
         // possibly rename this to something more appropriate if other
         // instructions will use this
-        macro_rules! unconditional_instruction {
-            ($F:ident, $P:ident) => {
-                (self.$F($P), instruction.cycles())
+        macro_rules! unconditional {
+            ($func:ident, $addr:ident) => {
+                (self.$func($addr), instruction.cycles())
             };
-            ($F:ident) => {
-                (self.$F(), instruction.cycles())
+            ($func:ident) => {
+                (self.$func(), instruction.cycles())
             };
         }
 
         macro_rules! conditional_branch {
-            ($F:ident, $P:ident) => {
-                match self.$F($P) {
+            ($func:ident, $addr:ident) => {
+                match self.$func($addr) {
                     None => (
                         self.pc.wrapping_add(instruction.size()),
                         instruction.cycles(),
@@ -52,8 +52,8 @@ impl Cpu {
         // cycle value is taken. Otherwise, take the lower value. The higher
         // value is always the lower value + 6.
         macro_rules! conditional_subroutine {
-            ($F:ident, $P:ident) => {
-                match self.$F($P) {
+            ($func:ident, $addr:ident) => {
+                match self.$func($addr) {
                     None => (
                         self.pc.wrapping_add(instruction.size()),
                         instruction.cycles(),
@@ -61,8 +61,8 @@ impl Cpu {
                     Some(next_pc) => (next_pc, instruction.cycles() + 6),
                 }
             };
-            ($F:ident) => {
-                match self.$F() {
+            ($func:ident) => {
+                match self.$func() {
                     None => (
                         self.pc.wrapping_add(instruction.size()),
                         instruction.cycles(),
@@ -72,12 +72,56 @@ impl Cpu {
             };
         }
 
+        macro_rules! logical_non_immediate {
+            ($func:ident, $operand: ident) => {{
+                let val = match $operand {
+                    Operand::A => self.registers.a,
+                    Operand::B => self.registers.b,
+                    Operand::C => self.registers.c,
+                    Operand::D => self.registers.d,
+                    Operand::E => self.registers.e,
+                    Operand::H => self.registers.h,
+                    Operand::L => self.registers.l,
+                    Operand::M => self.memory[self.registers.get_hl() as usize],
+                    _ => panic!(
+                        "{:#x?} only accepts registers or a memory location",
+                        instruction
+                    ),
+                };
+                self.$func(val);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
+        }
+
+        macro_rules! logical_immediate {
+            ($func:ident, $val: ident) => {{
+                self.$func($val);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
+        }
+
+        macro_rules! flag_or_register_modify {
+            ($func:ident) => {{
+                self.$func();
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
+        }
+
         let (pc, cycles) = match *instruction {
             Instruction::NOP => (
                 self.pc.wrapping_add(instruction.size()),
                 instruction.cycles(),
             ),
-            Instruction::JMP(addr) => unconditional_instruction!(jmp, addr),
+            Instruction::JMP(addr) => unconditional!(jmp, addr),
             Instruction::JC(addr) => conditional_branch!(jc, addr),
             Instruction::JNC(addr) => conditional_branch!(jnc, addr),
             Instruction::JZ(addr) => conditional_branch!(jz, addr),
@@ -86,8 +130,8 @@ impl Cpu {
             Instruction::JM(addr) => conditional_branch!(jm, addr),
             Instruction::JPE(addr) => conditional_branch!(jpe, addr),
             Instruction::JPO(addr) => conditional_branch!(jpo, addr),
-            Instruction::PCHL => unconditional_instruction!(pchl),
-            Instruction::CALL(addr) => unconditional_instruction!(call, addr),
+            Instruction::PCHL => unconditional!(pchl),
+            Instruction::CALL(addr) => unconditional!(call, addr),
             Instruction::CC(addr) => conditional_subroutine!(cc, addr),
             Instruction::CNC(addr) => conditional_subroutine!(cnc, addr),
             Instruction::CZ(addr) => conditional_subroutine!(cz, addr),
@@ -96,7 +140,7 @@ impl Cpu {
             Instruction::CM(addr) => conditional_subroutine!(cm, addr),
             Instruction::CPE(addr) => conditional_subroutine!(cpe, addr),
             Instruction::CPO(addr) => conditional_subroutine!(cpo, addr),
-            Instruction::RET => unconditional_instruction!(ret),
+            Instruction::RET => unconditional!(ret),
             Instruction::RC => conditional_subroutine!(rc),
             Instruction::RNC => conditional_subroutine!(rnc),
             Instruction::RZ => conditional_subroutine!(rz),
@@ -105,7 +149,23 @@ impl Cpu {
             Instruction::RM => conditional_subroutine!(rm),
             Instruction::RPE => conditional_subroutine!(rpe),
             Instruction::RPO => conditional_subroutine!(rpo),
-            Instruction::RST(addr) => unconditional_instruction!(rst, addr),
+            Instruction::RST(addr) => unconditional!(rst, addr),
+            Instruction::ANA(op) => logical_non_immediate!(ana, op),
+            Instruction::XRA(op) => logical_non_immediate!(xra, op),
+            Instruction::ORA(op) => logical_non_immediate!(ora, op),
+            Instruction::CMP(op) => logical_non_immediate!(cmp, op),
+            Instruction::ANI(val) => logical_immediate!(ani, val),
+            Instruction::XRI(val) => logical_immediate!(xri, val),
+            Instruction::ORI(val) => logical_immediate!(ori, val),
+            Instruction::CPI(val) => logical_immediate!(cpi, val),
+            Instruction::RLC => flag_or_register_modify!(rlc),
+            Instruction::RRC => flag_or_register_modify!(rrc),
+            Instruction::RAL => flag_or_register_modify!(ral),
+            Instruction::RAR => flag_or_register_modify!(rar),
+            Instruction::CMA => flag_or_register_modify!(cma),
+            Instruction::STC => flag_or_register_modify!(stc),
+            Instruction::CMC => flag_or_register_modify!(cmc),
+            Instruction::DAA => flag_or_register_modify!(daa),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -121,7 +181,7 @@ impl Cpu {
     }
 
     fn jc(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.cy {
+        if self.condition_codes.carry {
             Some(self.jump(addr))
         } else {
             None
@@ -129,7 +189,7 @@ impl Cpu {
     }
 
     fn jnc(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.cy {
+        if !self.condition_codes.carry {
             Some(self.jump(addr))
         } else {
             None
@@ -137,7 +197,7 @@ impl Cpu {
     }
 
     fn jz(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.z {
+        if self.condition_codes.zero {
             Some(self.jump(addr))
         } else {
             None
@@ -145,7 +205,7 @@ impl Cpu {
     }
 
     fn jnz(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.z {
+        if !self.condition_codes.zero {
             Some(self.jump(addr))
         } else {
             None
@@ -153,7 +213,7 @@ impl Cpu {
     }
 
     fn jp(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.s {
+        if !self.condition_codes.sign {
             Some(self.jump(addr))
         } else {
             None
@@ -161,7 +221,7 @@ impl Cpu {
     }
 
     fn jm(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.s {
+        if self.condition_codes.sign {
             Some(self.jump(addr))
         } else {
             None
@@ -169,7 +229,7 @@ impl Cpu {
     }
 
     fn jpe(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.p {
+        if self.condition_codes.parity {
             Some(self.jump(addr))
         } else {
             None
@@ -177,7 +237,7 @@ impl Cpu {
     }
 
     fn jpo(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.p {
+        if !self.condition_codes.parity {
             Some(self.jump(addr))
         } else {
             None
@@ -193,7 +253,7 @@ impl Cpu {
     }
 
     fn cc(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.cy {
+        if self.condition_codes.carry {
             Some(self.call(addr))
         } else {
             None
@@ -201,7 +261,7 @@ impl Cpu {
     }
 
     fn cnc(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.cy {
+        if !self.condition_codes.carry {
             Some(self.call(addr))
         } else {
             None
@@ -209,7 +269,7 @@ impl Cpu {
     }
 
     fn cz(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.z {
+        if self.condition_codes.zero {
             Some(self.call(addr))
         } else {
             None
@@ -217,7 +277,7 @@ impl Cpu {
     }
 
     fn cnz(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.z {
+        if !self.condition_codes.zero {
             Some(self.call(addr))
         } else {
             None
@@ -225,7 +285,7 @@ impl Cpu {
     }
 
     fn cp(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.s {
+        if !self.condition_codes.sign {
             Some(self.call(addr))
         } else {
             None
@@ -233,7 +293,7 @@ impl Cpu {
     }
 
     fn cm(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.s {
+        if self.condition_codes.sign {
             Some(self.call(addr))
         } else {
             None
@@ -241,7 +301,7 @@ impl Cpu {
     }
 
     fn cpe(&self, addr: u16) -> Option<u16> {
-        if self.condition_codes.p {
+        if self.condition_codes.parity {
             Some(self.call(addr))
         } else {
             None
@@ -249,7 +309,7 @@ impl Cpu {
     }
 
     fn cpo(&self, addr: u16) -> Option<u16> {
-        if !self.condition_codes.p {
+        if !self.condition_codes.parity {
             Some(self.call(addr))
         } else {
             None
@@ -263,7 +323,7 @@ impl Cpu {
     }
 
     fn rc(&self) -> Option<u16> {
-        if self.condition_codes.cy {
+        if self.condition_codes.carry {
             Some(self.ret())
         } else {
             None
@@ -271,7 +331,7 @@ impl Cpu {
     }
 
     fn rnc(&self) -> Option<u16> {
-        if !self.condition_codes.cy {
+        if !self.condition_codes.carry {
             Some(self.ret())
         } else {
             None
@@ -279,7 +339,7 @@ impl Cpu {
     }
 
     fn rz(&self) -> Option<u16> {
-        if self.condition_codes.z {
+        if self.condition_codes.zero {
             Some(self.ret())
         } else {
             None
@@ -287,7 +347,7 @@ impl Cpu {
     }
 
     fn rnz(&self) -> Option<u16> {
-        if !self.condition_codes.z {
+        if !self.condition_codes.zero {
             Some(self.ret())
         } else {
             None
@@ -295,7 +355,7 @@ impl Cpu {
     }
 
     fn rp(&self) -> Option<u16> {
-        if !self.condition_codes.s {
+        if !self.condition_codes.sign {
             Some(self.ret())
         } else {
             None
@@ -303,7 +363,7 @@ impl Cpu {
     }
 
     fn rm(&self) -> Option<u16> {
-        if self.condition_codes.s {
+        if self.condition_codes.sign {
             Some(self.ret())
         } else {
             None
@@ -311,7 +371,7 @@ impl Cpu {
     }
 
     fn rpe(&self) -> Option<u16> {
-        if self.condition_codes.p {
+        if self.condition_codes.parity {
             Some(self.ret())
         } else {
             None
@@ -319,7 +379,7 @@ impl Cpu {
     }
 
     fn rpo(&self) -> Option<u16> {
-        if !self.condition_codes.p {
+        if !self.condition_codes.parity {
             Some(self.ret())
         } else {
             None
@@ -344,68 +404,191 @@ impl Cpu {
         0
     }
 
-    // arithmetic group
-    fn add(&mut self, val: u8) {                                        // val is value containted in register
-        let res: u16 = self.registers.a as u16 + val as u16;            // as u16 to update flag details
-        self.condition_codes.update_flags(res);
-        self.registers.a = res as u8;
+    fn ana(&mut self, val: u8) {
+        self.and(val)
     }
 
-    fn inr(&mut self, val: &mut u8) {
-        let res: u16 = *val as u16 + 1;            
-        self.condition_codes.update_flags(res);
-        *val = res as u8;
+    fn ani(&mut self, val: u8) {
+        self.and(val)
     }
 
-    fn dcr(&mut self, val: &mut u8) {
-        if *val == 0 {
-            *val = 0xFF;
-            self.condition_codes.update_flags(*val as u16)
-        } else {
-            let res: u16 = *val as u16 - 1;
+    fn xra(&mut self, val: u8) {
+        self.xor(val)
+    }
+
+    fn xri(&mut self, val: u8) {
+        self.xor(val)
+    }
+
+    fn ora(&mut self, val: u8) {
+        self.or(val)
+    }
+
+    fn ori(&mut self, val: u8) {
+        self.or(val)
+    }
+
+    fn cmp(&mut self, val: u8) {
+        self.compare(val)
+    }
+
+    fn cpi(&mut self, val: u8) {
+        self.compare(val)
+    }
+
+    fn and(&mut self, val: u8) {
+        self.registers.a = self.registers.a & val;
+
+        self.condition_codes.reset_carry();
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+    fn xor(&mut self, val: u8) {
+        self.registers.a = self.registers.a ^ val;
+
+        self.condition_codes.reset_carry();
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+    fn or(&mut self, val: u8) {
+        self.registers.a = self.registers.a | val;
+
+        self.condition_codes.reset_carry();
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+    fn compare(&mut self, val: u8) {
+        let val = self.registers.a.wrapping_sub(val);
+
+        self.condition_codes.set_carry(self.registers.a < val);
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+    fn rlc(&mut self) {
+        let carry = (self.registers.a & 0x80) >> 7;
+        self.registers.a = self.registers.a << 1 | carry;
+        self.condition_codes.carry = (self.registers.a & 0x01) > 0;
+    }
+
+    fn rrc(&mut self) {
+        let carry = (self.registers.a & 0x80) << 7;
+        self.registers.a = self.registers.a >> 1 | carry;
+        self.condition_codes.carry = (self.registers.a & 0x80) > 0;
+    }
+
+    fn ral(&mut self) {
+        let carry_bit = if self.condition_codes.carry { 1 } else { 0 };
+        let high_bit = self.registers.a & 0x80;
+        self.registers.a = (self.registers.a << 1) | carry_bit;
+        self.condition_codes.carry = high_bit == 0x80;
+    }
+
+    fn rar(&mut self) {
+        let carry_bit = if self.condition_codes.carry { 1 } else { 0 };
+        let low_bit = self.registers.a & 0x01;
+        self.registers.a = (self.registers.a >> 1) | (carry_bit << 7);
+        self.condition_codes.carry = low_bit == 0x01;
+    }
+
+    fn cma(&mut self) {
+        self.registers.a = !self.registers.a
+    }
+
+    fn stc(&mut self) {
+        self.condition_codes.carry = true
+    }
+
+    fn cmc(&mut self) {
+        self.condition_codes.carry = !self.condition_codes.carry
+    }
+
+    fn daa(&mut self) {
+        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.aux_carry {
+            let high_bit = self.registers.a & 0x8;
+            self.registers.a = self.registers.a.wrapping_add(0x06);
+            self.condition_codes.aux_carry = (self.registers.a & 0x8) < high_bit;
+        }
+        if (self.registers.a & 0xF0 > 0x90) || self.condition_codes.carry {
+            let high_bit = (self.registers.a >> 4) & 0x8;
+            self.registers.a = self.registers.a.wrapping_add(0x60);
+            if ((self.registers.a >> 4) & 0x8) < high_bit {
+                self.condition_codes.set_carry(true);
+            }
+        }
+        self.condition_codes.set_sign(self.registers.a);
+        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_parity(self.registers.a);
+    }
+
+        // arithmetic group
+        fn add(&mut self, val: u8) {                                        // val is value containted in register
+            let res: u16 = self.registers.a as u16 + val as u16;            // as u16 to update flag details
+            self.condition_codes.update_flags(res);
+            self.registers.a = res as u8;
+        }
+    
+        fn inr(&mut self, val: &mut u8) {
+            let res: u16 = *val as u16 + 1;            
             self.condition_codes.update_flags(res);
             *val = res as u8;
         }
-    } 
-
-    fn adc(&mut self, val: u8) {
-        let res: u16 = self.registers.a as u16 + val as u16 + if self.condition_codes.cy {1} else {0};
-        self.condition_codes.update_flags(res);
-        self.registers.a = res as u8;
-    }
-
-    fn sub(&mut self, val: u8){
-        let res: u16 = self.registers.a as u16 - val as u16;
-        self.condition_codes.update_flags(res);
-        self.registers.a = res as u8;
-    }
-
-    fn sbb(&mut self, val: u8){
-        let res: u16 = self.registers.a as u16 - val as u16 - if self.condition_codes.cy {1} else {0};
-        self.condition_codes.update_flags(res);
-        self.registers.a = res as u8;
-    }
-
-    fn adi(&mut self, val: u8) {
-        self.add(val);
-    }
-
-    fn aci(&mut self, val: u8) {
-        self.adc(val);
-    }
-
-    fn sui(&mut self, val: u8){
-        self.sub(val);
-    }
-
-    fn sbi(&mut self, val: u8){
-        self.sbb(val);
-    }
-
-    // inx
-    // dcx
-    // dad
-
+    
+        fn dcr(&mut self, val: &mut u8) {
+            if *val == 0 {
+                *val = 0xFF;
+                self.condition_codes.update_flags(*val as u16)
+            } else {
+                let res: u16 = *val as u16 - 1;
+                self.condition_codes.update_flags(res);
+                *val = res as u8;
+            }
+        } 
+    
+        fn adc(&mut self, val: u8) {
+            let res: u16 = self.registers.a as u16 + val as u16 + if self.condition_codes.cy {1} else {0};
+            self.condition_codes.update_flags(res);
+            self.registers.a = res as u8;
+        }
+    
+        fn sub(&mut self, val: u8){
+            let res: u16 = self.registers.a as u16 - val as u16;
+            self.condition_codes.update_flags(res);
+            self.registers.a = res as u8;
+        }
+    
+        fn sbb(&mut self, val: u8){
+            let res: u16 = self.registers.a as u16 - val as u16 - if self.condition_codes.cy {1} else {0};
+            self.condition_codes.update_flags(res);
+            self.registers.a = res as u8;
+        }
+    
+        fn adi(&mut self, val: u8) {
+            self.add(val);
+        }
+    
+        fn aci(&mut self, val: u8) {
+            self.adc(val);
+        }
+    
+        fn sui(&mut self, val: u8){
+            self.sub(val);
+        }
+    
+        fn sbi(&mut self, val: u8){
+            self.sbb(val);
+        }
+    
+        // inx
+        // dcx
+        // dad
 
 }
 
@@ -413,12 +596,320 @@ impl Cpu {
 mod tests {
     use super::*;
 
-    // NOP
     #[test]
     fn test_nop() {
         let mut cpu = Cpu::new();
         let instr = Instruction::NOP;
-        let (next_pc, cycles) = cpu.execute(&instr);
+        let (_, cycles) = cpu.execute(&instr);
         assert_eq!(cycles, Instruction::NOP.cycles());
+    }
+
+    #[test]
+    fn test_jmp() {
+        let mut cpu = Cpu::new();
+        let (next_pc, _) = cpu.execute(&Instruction::JMP(0x10FF));
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jc() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JC(0x10FF);
+        cpu.condition_codes.carry = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.carry = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jnc() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JNC(0x10FF);
+        cpu.condition_codes.carry = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.carry = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jz() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JZ(0x10FF);
+        cpu.condition_codes.zero = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.zero = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jnz() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JNZ(0x10FF);
+        cpu.condition_codes.zero = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.zero = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jp() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JP(0x10FF);
+        cpu.condition_codes.sign = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.sign = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jm() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JM(0x10FF);
+        cpu.condition_codes.sign = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.sign = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jpe() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JPE(0x10FF);
+        cpu.condition_codes.parity = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.parity = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jpo() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JPO(0x10FF);
+        cpu.condition_codes.parity = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.parity = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_pchl() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0x01;
+        cpu.registers.l = 0x02;
+        let (next_pc, _) = cpu.execute(&Instruction::PCHL);
+        assert_eq!(next_pc, 0x0102);
+    }
+
+    // TODO add CALL and RET test once push/pop are complete
+
+    #[test]
+    fn test_ana() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFC;
+        cpu.registers.b = 0xF;
+        cpu.execute(&Instruction::ANA(Operand::B));
+        assert_eq!(cpu.registers.a, 0xC);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+    }
+
+    #[test]
+    fn test_xra() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFC;
+        cpu.registers.b = 0x1;
+        cpu.execute(&Instruction::XRA(Operand::B));
+        assert_eq!(cpu.registers.a, 0xFD);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ora() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x33;
+        cpu.registers.b = 0xF;
+        cpu.execute(&Instruction::ORA(Operand::B));
+        assert_eq!(cpu.registers.a, 0x3F);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+    }
+
+    #[test]
+    fn test_cmp() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xA;
+        cpu.registers.b = 0x5;
+        cpu.execute(&Instruction::CMP(Operand::B));
+        assert_eq!(cpu.registers.a, 0xA);
+        assert_eq!(cpu.registers.b, 0x5);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+
+        cpu.registers.a = 0x2;
+        cpu.registers.b = 0x5;
+        cpu.execute(&Instruction::CMP(Operand::B));
+        assert_eq!(cpu.registers.a, 0x2);
+        assert_eq!(cpu.registers.b, 0x5);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ani() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x3A;
+        cpu.execute(&Instruction::ANI(0xF));
+        assert_eq!(cpu.registers.a, 0xA);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+    }
+
+    #[test]
+    fn test_xri() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x3B;
+        cpu.execute(&Instruction::XRI(0x81));
+        assert_eq!(cpu.registers.a, 0xBA);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ori() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xB5;
+        cpu.execute(&Instruction::ORI(0xF));
+        assert_eq!(cpu.registers.a, 0xBF);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_cpi() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x4A;
+        cpu.execute(&Instruction::CPI(0x40));
+        assert_eq!(cpu.registers.a, 0x4A);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+
+        cpu.registers.a = 0x2;
+        cpu.execute(&Instruction::CPI(0x40));
+        assert_eq!(cpu.registers.a, 0x2);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_rlc() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xF2;
+        cpu.execute(&Instruction::RLC);
+        assert_eq!(cpu.registers.a, 0xE5);
+        assert_eq!(cpu.condition_codes.carry, true);
+    }
+
+    #[test]
+    fn test_rrc() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xF2;
+        cpu.execute(&Instruction::RRC);
+        assert_eq!(cpu.registers.a, 0x79);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_ral() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xB5;
+        cpu.execute(&Instruction::RAL);
+        assert_eq!(cpu.registers.a, 0x6A);
+        assert_eq!(cpu.condition_codes.carry, true);
+    }
+
+    #[test]
+    fn test_rar() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x6A;
+        cpu.condition_codes.carry = true;
+        cpu.execute(&Instruction::RAR);
+        assert_eq!(cpu.registers.a, 0xB5);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_cma() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x51;
+        cpu.execute(&Instruction::CMA);
+        assert_eq!(cpu.registers.a, 0xAE);
+    }
+
+    #[test]
+    fn test_stc() {
+        let mut cpu = Cpu::new();
+        cpu.execute(&Instruction::STC);
+        assert_eq!(cpu.condition_codes.carry, true);
+    }
+
+    #[test]
+    fn test_cmc() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::CMC;
+        cpu.condition_codes.carry = false;
+        cpu.execute(&instr);
+        assert_eq!(cpu.condition_codes.carry, true);
+        cpu.condition_codes.carry = true;
+        cpu.execute(&instr);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_daa() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x9B;
+        cpu.condition_codes.carry = false;
+        cpu.condition_codes.aux_carry = false;
+        cpu.execute(&Instruction::DAA);
+        assert_eq!(cpu.registers.a, 0x1);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
     }
 }
