@@ -106,7 +106,7 @@ impl Cpu {
             }};
         }
 
-        macro_rules! modify_flags_registers {
+        macro_rules! flag_or_register_modify {
             ($func:ident) => {{
                 self.$func();
                 (
@@ -158,14 +158,14 @@ impl Cpu {
             Instruction::XRI(val) => logical_immediate!(xri, val),
             Instruction::ORI(val) => logical_immediate!(ori, val),
             Instruction::CPI(val) => logical_immediate!(cpi, val),
-            Instruction::RLC => modify_flags_registers!(rlc),
-            Instruction::RRC => modify_flags_registers!(rrc),
-            Instruction::RAL => modify_flags_registers!(ral),
-            Instruction::RAR => modify_flags_registers!(rar),
-            Instruction::CMA => modify_flags_registers!(cma),
-            Instruction::STC => modify_flags_registers!(stc),
-            Instruction::CMC => modify_flags_registers!(cmc),
-            Instruction::DAA => modify_flags_registers!(daa),
+            Instruction::RLC => flag_or_register_modify!(rlc),
+            Instruction::RRC => flag_or_register_modify!(rrc),
+            Instruction::RAL => flag_or_register_modify!(ral),
+            Instruction::RAR => flag_or_register_modify!(rar),
+            Instruction::CMA => flag_or_register_modify!(cma),
+            Instruction::STC => flag_or_register_modify!(stc),
+            Instruction::CMC => flag_or_register_modify!(cmc),
+            Instruction::DAA => flag_or_register_modify!(daa),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -494,7 +494,7 @@ impl Cpu {
     fn rar(&mut self) {
         let carry_bit = if self.condition_codes.carry { 1 } else { 0 };
         let low_bit = self.registers.a & 0x01;
-        self.registers.a = (self.registers.a >> 1) | carry_bit;
+        self.registers.a = (self.registers.a >> 1) | (carry_bit << 7);
         self.condition_codes.carry = low_bit == 0x01;
     }
 
@@ -533,12 +533,320 @@ impl Cpu {
 mod tests {
     use super::*;
 
-    // NOP
     #[test]
     fn test_nop() {
         let mut cpu = Cpu::new();
         let instr = Instruction::NOP;
-        let (next_pc, cycles) = cpu.execute(&instr);
+        let (_, cycles) = cpu.execute(&instr);
         assert_eq!(cycles, Instruction::NOP.cycles());
+    }
+
+    #[test]
+    fn test_jmp() {
+        let mut cpu = Cpu::new();
+        let (next_pc, _) = cpu.execute(&Instruction::JMP(0x10FF));
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jc() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JC(0x10FF);
+        cpu.condition_codes.carry = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.carry = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jnc() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JNC(0x10FF);
+        cpu.condition_codes.carry = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.carry = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jz() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JZ(0x10FF);
+        cpu.condition_codes.zero = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.zero = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jnz() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JNZ(0x10FF);
+        cpu.condition_codes.zero = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.zero = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jp() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JP(0x10FF);
+        cpu.condition_codes.sign = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.sign = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jm() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JM(0x10FF);
+        cpu.condition_codes.sign = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.sign = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jpe() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JPE(0x10FF);
+        cpu.condition_codes.parity = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.parity = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_jpo() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::JPO(0x10FF);
+        cpu.condition_codes.parity = true;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_ne!(next_pc, 0x10FF);
+        cpu.condition_codes.parity = false;
+        let (next_pc, _) = cpu.execute(&instr);
+        assert_eq!(next_pc, 0x10FF);
+    }
+
+    #[test]
+    fn test_pchl() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0x01;
+        cpu.registers.l = 0x02;
+        let (next_pc, _) = cpu.execute(&Instruction::PCHL);
+        assert_eq!(next_pc, 0x0102);
+    }
+
+    // TODO add CALL and RET test once push/pop are complete
+
+    #[test]
+    fn test_ana() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFC;
+        cpu.registers.b = 0xF;
+        cpu.execute(&Instruction::ANA(Operand::B));
+        assert_eq!(cpu.registers.a, 0xC);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+    }
+
+    #[test]
+    fn test_xra() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFC;
+        cpu.registers.b = 0x1;
+        cpu.execute(&Instruction::XRA(Operand::B));
+        assert_eq!(cpu.registers.a, 0xFD);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ora() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x33;
+        cpu.registers.b = 0xF;
+        cpu.execute(&Instruction::ORA(Operand::B));
+        assert_eq!(cpu.registers.a, 0x3F);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+    }
+
+    #[test]
+    fn test_cmp() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xA;
+        cpu.registers.b = 0x5;
+        cpu.execute(&Instruction::CMP(Operand::B));
+        assert_eq!(cpu.registers.a, 0xA);
+        assert_eq!(cpu.registers.b, 0x5);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+
+        cpu.registers.a = 0x2;
+        cpu.registers.b = 0x5;
+        cpu.execute(&Instruction::CMP(Operand::B));
+        assert_eq!(cpu.registers.a, 0x2);
+        assert_eq!(cpu.registers.b, 0x5);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ani() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x3A;
+        cpu.execute(&Instruction::ANI(0xF));
+        assert_eq!(cpu.registers.a, 0xA);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+    }
+
+    #[test]
+    fn test_xri() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x3B;
+        cpu.execute(&Instruction::XRI(0x81));
+        assert_eq!(cpu.registers.a, 0xBA);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ori() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xB5;
+        cpu.execute(&Instruction::ORI(0xF));
+        assert_eq!(cpu.registers.a, 0xBF);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_cpi() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x4A;
+        cpu.execute(&Instruction::CPI(0x40));
+        assert_eq!(cpu.registers.a, 0x4A);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+
+        cpu.registers.a = 0x2;
+        cpu.execute(&Instruction::CPI(0x40));
+        assert_eq!(cpu.registers.a, 0x2);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_rlc() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xF2;
+        cpu.execute(&Instruction::RLC);
+        assert_eq!(cpu.registers.a, 0xE5);
+        assert_eq!(cpu.condition_codes.carry, true);
+    }
+
+    #[test]
+    fn test_rrc() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xF2;
+        cpu.execute(&Instruction::RRC);
+        assert_eq!(cpu.registers.a, 0x79);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_ral() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xB5;
+        cpu.execute(&Instruction::RAL);
+        assert_eq!(cpu.registers.a, 0x6A);
+        assert_eq!(cpu.condition_codes.carry, true);
+    }
+
+    #[test]
+    fn test_rar() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x6A;
+        cpu.condition_codes.carry = true;
+        cpu.execute(&Instruction::RAR);
+        assert_eq!(cpu.registers.a, 0xB5);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_cma() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x51;
+        cpu.execute(&Instruction::CMA);
+        assert_eq!(cpu.registers.a, 0xAE);
+    }
+
+    #[test]
+    fn test_stc() {
+        let mut cpu = Cpu::new();
+        cpu.execute(&Instruction::STC);
+        assert_eq!(cpu.condition_codes.carry, true);
+    }
+
+    #[test]
+    fn test_cmc() {
+        let mut cpu = Cpu::new();
+        let instr = Instruction::CMC;
+        cpu.condition_codes.carry = false;
+        cpu.execute(&instr);
+        assert_eq!(cpu.condition_codes.carry, true);
+        cpu.condition_codes.carry = true;
+        cpu.execute(&instr);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_daa() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x9B;
+        cpu.condition_codes.carry = false;
+        cpu.condition_codes.accumulator = false;
+        cpu.execute(&Instruction::DAA);
+        assert_eq!(cpu.registers.a, 0x1);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.accumulator, true);
     }
 }
