@@ -4,7 +4,7 @@ pub struct ConditionCodes {
     pub sign: bool,
     pub parity: bool,
     pub carry: bool,
-    pub accumulator: bool,
+    pub aux_carry: bool,
 }
 
 impl ConditionCodes {

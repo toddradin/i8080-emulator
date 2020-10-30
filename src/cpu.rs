@@ -511,10 +511,10 @@ impl Cpu {
     }
 
     fn daa(&mut self) {
-        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.accumulator {
+        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.aux_carry {
             let high_bit = self.registers.a & 0x8;
             self.registers.a = self.registers.a.wrapping_add(0x06);
-            self.condition_codes.accumulator = (self.registers.a & 0x8) < high_bit;
+            self.condition_codes.aux_carry = (self.registers.a & 0x8) < high_bit;
         }
         if (self.registers.a & 0xF0 > 0x90) || self.condition_codes.carry {
             let high_bit = (self.registers.a >> 4) & 0x8;
@@ -843,10 +843,10 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x9B;
         cpu.condition_codes.carry = false;
-        cpu.condition_codes.accumulator = false;
+        cpu.condition_codes.aux_carry = false;
         cpu.execute(&Instruction::DAA);
         assert_eq!(cpu.registers.a, 0x1);
         assert_eq!(cpu.condition_codes.carry, true);
-        assert_eq!(cpu.condition_codes.accumulator, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
     }
 }
