@@ -343,6 +343,70 @@ impl Cpu {
         // TODO
         0
     }
+
+    // arithmetic group
+    fn add(&mut self, val: u8) {                                        // val is value containted in register
+        let res: u16 = self.registers.a as u16 + val as u16;            // as u16 to update flag details
+        self.condition_codes.update_flags(res);
+        self.registers.a = res as u8;
+    }
+
+    fn inr(&mut self, val: &mut u8) {
+        let res: u16 = *val as u16 + 1;            
+        self.condition_codes.update_flags(res);
+        *val = res as u8;
+    }
+
+    fn dcr(&mut self, val: &mut u8) {
+        if *val == 0 {
+            *val = 0xFF;
+            self.condition_codes.update_flags(*val as u16)
+        } else {
+            let res: u16 = *val as u16 - 1;
+            self.condition_codes.update_flags(res);
+            *val = res as u8;
+        }
+    } 
+
+    fn adc(&mut self, val: u8) {
+        let res: u16 = self.registers.a as u16 + val as u16 + if self.condition_codes.cy {1} else {0};
+        self.condition_codes.update_flags(res);
+        self.registers.a = res as u8;
+    }
+
+    fn sub(&mut self, val: u8){
+        let res: u16 = self.registers.a as u16 - val as u16;
+        self.condition_codes.update_flags(res);
+        self.registers.a = res as u8;
+    }
+
+    fn sbb(&mut self, val: u8){
+        let res: u16 = self.registers.a as u16 - val as u16 - if self.condition_codes.cy {1} else {0};
+        self.condition_codes.update_flags(res);
+        self.registers.a = res as u8;
+    }
+
+    fn adi(&mut self, val: u8) {
+        self.add(val);
+    }
+
+    fn aci(&mut self, val: u8) {
+        self.adc(val);
+    }
+
+    fn sui(&mut self, val: u8){
+        self.sub(val);
+    }
+
+    fn sbi(&mut self, val: u8){
+        self.sbb(val);
+    }
+
+    // inx
+    // dcx
+    // dad
+
+
 }
 
 #[cfg(test)]
