@@ -72,7 +72,7 @@ impl Cpu {
             };
         }
 
-        macro_rules! logical_non_immediate {
+        macro_rules! alu_non_immediate {
             ($func:ident, $operand: ident) => {{
                 let val = match $operand {
                     Operand::A => self.registers.a,
@@ -96,7 +96,7 @@ impl Cpu {
             }};
         }
 
-        macro_rules! logical_immediate {
+        macro_rules! alu_immediate {
             ($func:ident, $val: ident) => {{
                 self.$func($val);
                 (
@@ -109,6 +109,18 @@ impl Cpu {
         macro_rules! flag_or_register_modify {
             ($func:ident) => {{
                 self.$func();
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
+        }
+        
+        // not sure if I should pass by reference or if I should have it return a value
+        // thinking it through now
+        macro_rules! inc_dec {
+            ($func:ident, $val: ident) => {{
+                self.$func($val);
                 (
                     self.pc.wrapping_add(instruction.size()),
                     instruction.cycles(),
