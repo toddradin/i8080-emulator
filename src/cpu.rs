@@ -528,67 +528,100 @@ impl Cpu {
         self.condition_codes.set_parity(self.registers.a);
     }
 
-        // arithmetic group
-        fn add(&mut self, val: u8) {                                        // val is value containted in register
-            let res: u16 = self.registers.a as u16 + val as u16;            // as u16 to update flag details
-            self.condition_codes.update_flags(res);
-            self.registers.a = res as u8;
-        }
-    
-        fn inr(&mut self, val: &mut u8) {
-            let res: u16 = *val as u16 + 1;            
-            self.condition_codes.update_flags(res);
-            *val = res as u8;
-        }
-    
-        fn dcr(&mut self, val: &mut u8) {
-            if *val == 0 {
-                *val = 0xFF;
-                self.condition_codes.update_flags(*val as u16)
-            } else {
-                let res: u16 = *val as u16 - 1;
-                self.condition_codes.update_flags(res);
-                *val = res as u8;
-            }
-        } 
-    
-        fn adc(&mut self, val: u8) {
-            let res: u16 = self.registers.a as u16 + val as u16 + if self.condition_codes.cy {1} else {0};
-            self.condition_codes.update_flags(res);
-            self.registers.a = res as u8;
-        }
-    
-        fn sub(&mut self, val: u8){
-            let res: u16 = self.registers.a as u16 - val as u16;
-            self.condition_codes.update_flags(res);
-            self.registers.a = res as u8;
-        }
-    
-        fn sbb(&mut self, val: u8){
-            let res: u16 = self.registers.a as u16 - val as u16 - if self.condition_codes.cy {1} else {0};
-            self.condition_codes.update_flags(res);
-            self.registers.a = res as u8;
-        }
-    
-        fn adi(&mut self, val: u8) {
-            self.add(val);
-        }
-    
-        fn aci(&mut self, val: u8) {
-            self.adc(val);
-        }
-    
-        fn sui(&mut self, val: u8){
-            self.sub(val);
-        }
-    
-        fn sbi(&mut self, val: u8){
-            self.sbb(val);
-        }
-    
-        // inx
-        // dcx
-        // dad
+    // arithmetic group
+    fn add(&mut self, val: u8) {                                        // val is value containted in register
+        let reg_a = self.registers.a;                                   
+        let res: u16 = (reg_a as u16).wrapping_add(val as u16);
+        // put result in accumulator 
+        self.registers.a = res as u8;
+        // update flags
+        self.condition_codes.set_zero(res as u8);
+        self.condition_codes.set_sign(res as u8);
+        self.condition_codes.set_parity(res as u8);
+        self.condition_codes.set_carry(res > 0xFF);
+        self.condition_codes.set_aux_carry((reg_a & 0x0F) + (val & 0x0F) > 0x0F);
+    }
+
+    fn inr(&mut self, val: u8) -> u8 {
+        let res = val.wrapping_add(1);   
+        // update flags         
+        self.condition_codes.set_zero(res);
+        self.condition_codes.set_sign(res);
+        self.condition_codes.set_parity(res);
+        self.condition_codes.set_aux_carry((val & 0x0F) == 0x00);
+        res
+    }
+
+    fn dcr(&mut self, val: u8) -> u8 {
+        let res = val.wrapping_sub(1);   
+        // update flags         
+        self.condition_codes.set_zero(res);
+        self.condition_codes.set_sign(res);
+        self.condition_codes.set_parity(res);
+        self.condition_codes.set_aux_carry((val & 0x0F) == 0x00);
+        res
+    } 
+
+    fn adc(&mut self, val: u8) {
+        let reg_a = self.registers.a;
+        let carry: u8 = if self.condition_codes.carry {1} else {0};
+        let res = (reg_a as u16).wrapping_add(val as u16).wrapping_add(carry as u16);
+        // put result in accumulator 
+        self.registers.a = res as u8;
+        // update flags
+        self.condition_codes.set_zero(res as u8);
+        self.condition_codes.set_sign(res as u8);
+        self.condition_codes.set_parity(res as u8);
+        self.condition_codes.set_carry(res > 0xFF);
+        self.condition_codes.set_aux_carry((reg_a & 0x0F) + (val & 0x0F) + (carry & 0x0F) > 0x0F);
+    }
+
+    fn sub(&mut self, val: u8){
+        let reg_a = self.registers.a;                                   
+        let res: u16 = (reg_a as u16).wrapping_sub(val as u16);
+        // put result in accumulator 
+        self.registers.a = res as u8;
+        // update flags
+        self.condition_codes.set_zero(res as u8);
+        self.condition_codes.set_sign(res as u8);
+        self.condition_codes.set_parity(res as u8);
+        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes.set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F) >= 0);
+    }
+
+    fn sbb(&mut self, val: u8){
+        let reg_a = self.registers.a;
+        let borrow: u8 = if self.condition_codes.carry {1} else {0};                                   
+        let res: u16 = (reg_a as u16).wrapping_sub(val as u16).wrapping_sub(borrow as u16);
+        // put result in accumulator 
+        self.registers.a = res as u8;
+        // update flags
+        self.condition_codes.set_zero(res as u8);
+        self.condition_codes.set_sign(res as u8);
+        self.condition_codes.set_parity(res as u8);
+        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes.set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F - (borrow as i8)) >= 0);
+    }
+
+    fn adi(&mut self, val: u8) {
+        self.add(val);
+    }
+
+    fn aci(&mut self, val: u8) {
+        self.adc(val);
+    }
+
+    fn sui(&mut self, val: u8){
+        self.sub(val);
+    }
+
+    fn sbi(&mut self, val: u8){
+        self.sbb(val);
+    }
+
+    // inx
+    // dcx
+    // dad
 
 }
 
