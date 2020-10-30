@@ -2,6 +2,8 @@ use crate::condition_codes::ConditionCodes;
 use crate::instruction::Instruction;
 use crate::registers::Registers;
 
+use std::process;
+
 #[allow(dead_code)]
 pub struct Cpu {
     pub registers: Registers,
@@ -334,15 +336,70 @@ impl Cpu {
         self.call(addr as u16)
     }
 
+    //TODO: remove extra space
     fn push(&self, addr: u16) -> u16 {
-        // TODO
+        self.memory = addr;
+        self.sp -= 2; 
         0
     }
 
-    fn pop(&self) -> u16 {
+    fn pop(&self, addr: u16) -> u16 {
         // TODO
-        0
+        self.memory
+        self.sp += 2;
+        self.memory[sp]
     }
+
+    fn dad(&self, val: u16) {
+        let res: u16 = val + 
+    }
+
+    fn dcx(&self) {
+
+    }
+
+    fn inx(&self, val: u16) {
+        let res: u16 = val + 1;
+        val
+
+    }
+
+    fn hlt(&self) {
+        //Halt instruction. exits program.
+        process::exit(1);
+    }
+
+    fn input(&self) { //IN is a reserved keyword
+        //TODO: for now doesn't do anything
+        //Emulator 101 says to implement later
+        //http://www.emulator101.com/io-and-special-group.html
+    }
+
+    fn output(&self) { //OUT
+        //TODO: for now doesn't do anything
+        //Emulator 101 says to implement later
+        //http://www.emulator101.com/io-and-special-group.html
+    }
+
+    fn ei(&self) {
+        self.interrupts_enabled = true;
+    }
+
+    fn di(&self) {
+        self.interrupts_enabled = false;
+    }
+
+    fn nop(&self) {
+        //no operation
+    }
+
+    // fn rim(&self) {
+    //  not used for Space Invaders
+    // }
+
+    // fn sim(&sim) {
+    //  not used for Space Invaders
+    //}
 }
 
 #[cfg(test)]
