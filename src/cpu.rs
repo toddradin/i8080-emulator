@@ -115,18 +115,6 @@ impl Cpu {
                 )
             }};
         }
-        
-        // not sure if I should pass by reference or if I should have it return a value
-        // thinking it through now
-        macro_rules! inc_dec {
-            ($func:ident, $val: ident) => {{
-                self.$func($val);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }};
-        }
 
         let (pc, cycles) = match *instruction {
             Instruction::NOP => (
@@ -162,14 +150,14 @@ impl Cpu {
             Instruction::RPE => conditional_subroutine!(rpe),
             Instruction::RPO => conditional_subroutine!(rpo),
             Instruction::RST(addr) => unconditional!(rst, addr),
-            Instruction::ANA(op) => logical_non_immediate!(ana, op),
-            Instruction::XRA(op) => logical_non_immediate!(xra, op),
-            Instruction::ORA(op) => logical_non_immediate!(ora, op),
-            Instruction::CMP(op) => logical_non_immediate!(cmp, op),
-            Instruction::ANI(val) => logical_immediate!(ani, val),
-            Instruction::XRI(val) => logical_immediate!(xri, val),
-            Instruction::ORI(val) => logical_immediate!(ori, val),
-            Instruction::CPI(val) => logical_immediate!(cpi, val),
+            Instruction::ANA(op) => alu_non_immediate!(ana, op),
+            Instruction::XRA(op) => alu_non_immediate!(xra, op),
+            Instruction::ORA(op) => alu_non_immediate!(ora, op),
+            Instruction::CMP(op) => alu_non_immediate!(cmp, op),
+            Instruction::ANI(val) => alu_immediate!(ani, val),
+            Instruction::XRI(val) => alu_immediate!(xri, val),
+            Instruction::ORI(val) => alu_immediate!(ori, val),
+            Instruction::CPI(val) => alu_immediate!(cpi, val),
             Instruction::RLC => flag_or_register_modify!(rlc),
             Instruction::RRC => flag_or_register_modify!(rrc),
             Instruction::RAL => flag_or_register_modify!(ral),
@@ -178,6 +166,28 @@ impl Cpu {
             Instruction::STC => flag_or_register_modify!(stc),
             Instruction::CMC => flag_or_register_modify!(cmc),
             Instruction::DAA => flag_or_register_modify!(daa),
+            Instruction::ADD(op) => alu_non_immediate!(add, op),
+            Instruction::ADC(op) => alu_non_immediate!(adc, op),
+            Instruction::SUB(op) => alu_non_immediate!(sub, op),
+            Instruction::SBB(op) => alu_non_immediate!(sbb, op),
+            Instruction::ADI(val) => alu_immediate!(adi, val),
+            Instruction::ACI(val) => alu_immediate!(aci, val),
+            Instruction::SUI(val) => alu_immediate!(sui, val),
+            Instruction::SBI(val) => alu_immediate!(sbi, val),
+            Instruction::INR(op) => {{
+                self.inr(op);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }},
+            Instruction::DCR(op) =>  {{
+                self.dcr(op);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }},
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -554,25 +564,98 @@ impl Cpu {
         self.condition_codes.set_aux_carry((reg_a & 0x0F) + (val & 0x0F) > 0x0F);
     }
 
-    fn inr(&mut self, val: u8) -> u8 {
-        let res = val.wrapping_add(1);   
+    fn inr(&mut self, reg: Operand) {
+        let res = match reg {
+            Operand::A => {
+                self.registers.a = self.registers.a.wrapping_add(1);
+                self.registers.a
+            }
+            Operand::B => {
+                self.registers.b = self.registers.b.wrapping_add(1);
+                self.registers.b
+            }
+            Operand::C => {
+                self.registers.c = self.registers.c.wrapping_add(1);
+                self.registers.c
+            }
+            Operand::D => {
+                self.registers.d = self.registers.d.wrapping_add(1);
+                self.registers.d
+            }
+            Operand::E => {
+                self.registers.e = self.registers.e.wrapping_add(1);
+                self.registers.e
+            }
+            Operand::H => {
+                self.registers.h = self.registers.h.wrapping_add(1);
+                self.registers.h
+            }
+            Operand::L => {
+                self.registers.l = self.registers.l.wrapping_add(1);
+                self.registers.l
+            }
+            Operand::M => {
+                let hl = self.registers.get_hl() as usize;
+                self.memory[hl] = self.memory[hl].wrapping_add(1);
+                self.memory[hl]
+            }
+            _ => panic!(
+                "INR only accepts registers or a memory location"
+            )
+        };   
         // update flags         
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((val & 0x0F) == 0x00);
-        res
+        self.condition_codes.set_aux_carry((res.wrapping_sub(1) & 0x0F) == 0x00);
     }
 
-    fn dcr(&mut self, val: u8) -> u8 {
-        let res = val.wrapping_sub(1);   
-        // update flags         
+    fn dcr(&mut self, reg: Operand){
+        let res = match reg {
+            Operand::A => {
+                self.registers.a = self.registers.a.wrapping_sub(1);
+                self.registers.a
+            }
+            Operand::B => {
+                self.registers.b = self.registers.b.wrapping_sub(1);
+                self.registers.b
+            }
+            Operand::C => {
+                self.registers.c = self.registers.c.wrapping_sub(1);
+                self.registers.c
+            }
+            Operand::D => {
+                self.registers.d = self.registers.d.wrapping_sub(1);
+                self.registers.d
+            }
+            Operand::E => {
+                self.registers.e = self.registers.e.wrapping_sub(1);
+                self.registers.e
+            }
+            Operand::H => {
+                self.registers.h = self.registers.h.wrapping_sub(1);
+                self.registers.h
+            }
+            Operand::L => {
+                self.registers.l = self.registers.l.wrapping_sub(1);
+                self.registers.l
+            }
+            Operand::M => {
+                let location = self.registers.get_hl() as usize;
+                self.memory[location] = self.memory[location].wrapping_sub(1);
+                self.memory[location]
+            }
+            _ => panic!(
+                "INR only accepts registers or a memory location"
+            )
+        };   
+        // update flags
+        self.condition_codes.reset_carry();         
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((val & 0x0F) == 0x00);
-        res
-    } 
+        self.condition_codes.set_aux_carry((res.wrapping_add(1) & 0x0F) == 0x00);
+    }
 
     fn adc(&mut self, val: u8) {
         let reg_a = self.registers.a;
@@ -957,4 +1040,111 @@ mod tests {
         assert_eq!(cpu.condition_codes.carry, true);
         assert_eq!(cpu.condition_codes.aux_carry, true);
     }
+
+    #[test]
+    fn test_add() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x6C;
+        cpu.registers.d = 0x2E;
+        cpu.execute(&Instruction::ADD(Operand::D));
+
+        assert_eq!(cpu.registers.a, 0x9A);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
+    }
+
+    #[test]
+    fn test_adc() {
+        // carry bit not set
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x42;
+        cpu.registers.c = 0x3D;
+        cpu.condition_codes.carry = false;
+        cpu.execute(&Instruction::ADC(Operand::C));
+
+        assert_eq!(cpu.registers.a, 0x7F);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
+
+        // carry bit set
+        cpu.registers.a = 0x42;
+        cpu.registers.c = 0x3D;
+        cpu.condition_codes.carry = true;
+        cpu.execute(&Instruction::ADC(Operand::C));
+
+        assert_eq!(cpu.registers.a, 0x80);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
+    }
+
+
+    #[test]
+    fn test_sub() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x3E;
+        cpu.execute(&Instruction::SUB(Operand::A));
+
+        assert_eq!(cpu.registers.a, 0x0);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, true);
+        assert_eq!(cpu.condition_codes.parity, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
+    }
+
+    #[test]
+    fn test_sbb() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x4;
+        cpu.registers.l = 0x2;
+        cpu.condition_codes.carry = true;
+        cpu.execute(&Instruction::SBB(Operand::L));
+
+        assert_eq!(cpu.registers.a, 0x1);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
+    }
+
+    #[test]
+    fn test_inr() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x99;
+        cpu.execute(&Instruction::INR(Operand::A));
+
+        assert_eq!(cpu.registers.a, 0x9A);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
+    }
+
+    #[test]
+    fn test_dcr() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0x3A;
+        cpu.registers.l = 0x7C;
+        cpu.memory[0x3A7C] = 0x40;
+        cpu.execute(&Instruction::DCR(Operand::M));
+
+        assert_eq!(cpu.memory[0x3A7C], 0x3F);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
+    }
+
 }
