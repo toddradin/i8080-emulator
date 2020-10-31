@@ -174,20 +174,20 @@ impl Cpu {
             Instruction::ACI(val) => alu_immediate!(aci, val),
             Instruction::SUI(val) => alu_immediate!(sui, val),
             Instruction::SBI(val) => alu_immediate!(sbi, val),
-            Instruction::INR(op) => {{
+            Instruction::INR(op) => {
                 self.inr(op);
                 (
                     self.pc.wrapping_add(instruction.size()),
                     instruction.cycles(),
                 )
-            }},
-            Instruction::DCR(op) =>  {{
+            }
+            Instruction::DCR(op) => {
                 self.dcr(op);
                 (
                     self.pc.wrapping_add(instruction.size()),
                     instruction.cycles(),
                 )
-            }},
+            }
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -551,17 +551,19 @@ impl Cpu {
     }
 
     // arithmetic group
-    fn add(&mut self, val: u8) {                                        // val is value containted in register
-        let reg_a = self.registers.a;                                   
+    fn add(&mut self, val: u8) {
+        // val is value containted in register
+        let reg_a = self.registers.a;
         let res: u16 = (reg_a as u16).wrapping_add(val as u16);
-        // put result in accumulator 
+        // put result in accumulator
         self.registers.a = res as u8;
         // update flags
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(res > 0xFF);
-        self.condition_codes.set_aux_carry((reg_a & 0x0F) + (val & 0x0F) > 0x0F);
+        self.condition_codes
+            .set_aux_carry((reg_a & 0x0F) + (val & 0x0F) > 0x0F);
     }
 
     fn inr(&mut self, reg: Operand) {
@@ -599,18 +601,17 @@ impl Cpu {
                 self.memory[hl] = self.memory[hl].wrapping_add(1);
                 self.memory[hl]
             }
-            _ => panic!(
-                "INR only accepts registers or a memory location"
-            )
-        };   
-        // update flags         
+            _ => panic!("INR only accepts registers or a memory location"),
+        };
+        // update flags
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((res.wrapping_sub(1) & 0x0F) == 0x00);
+        self.condition_codes
+            .set_aux_carry((res.wrapping_sub(1) & 0x0F) == 0x00);
     }
 
-    fn dcr(&mut self, reg: Operand){
+    fn dcr(&mut self, reg: Operand) {
         let res = match reg {
             Operand::A => {
                 self.registers.a = self.registers.a.wrapping_sub(1);
@@ -645,57 +646,63 @@ impl Cpu {
                 self.memory[location] = self.memory[location].wrapping_sub(1);
                 self.memory[location]
             }
-            _ => panic!(
-                "INR only accepts registers or a memory location"
-            )
-        };   
+            _ => panic!("INR only accepts registers or a memory location"),
+        };
         // update flags
-        self.condition_codes.reset_carry();         
+        self.condition_codes.reset_carry();
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((res.wrapping_add(1) & 0x0F) == 0x00);
+        self.condition_codes
+            .set_aux_carry((res.wrapping_add(1) & 0x0F) == 0x00);
     }
 
     fn adc(&mut self, val: u8) {
         let reg_a = self.registers.a;
-        let carry: u8 = if self.condition_codes.carry {1} else {0};
-        let res = (reg_a as u16).wrapping_add(val as u16).wrapping_add(carry as u16);
-        // put result in accumulator 
+        let carry: u8 = if self.condition_codes.carry { 1 } else { 0 };
+        let res = (reg_a as u16)
+            .wrapping_add(val as u16)
+            .wrapping_add(carry as u16);
+        // put result in accumulator
         self.registers.a = res as u8;
         // update flags
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(res > 0xFF);
-        self.condition_codes.set_aux_carry((reg_a & 0x0F) + (val & 0x0F) + (carry & 0x0F) > 0x0F);
+        self.condition_codes
+            .set_aux_carry((reg_a & 0x0F) + (val & 0x0F) + (carry & 0x0F) > 0x0F);
     }
 
-    fn sub(&mut self, val: u8){
-        let reg_a = self.registers.a;                                   
-        let res: u16 = (reg_a as u16).wrapping_sub(val as u16);
-        // put result in accumulator 
-        self.registers.a = res as u8;
-        // update flags
-        self.condition_codes.set_zero(res as u8);
-        self.condition_codes.set_sign(res as u8);
-        self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(reg_a < val);
-        self.condition_codes.set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F) >= 0);
-    }
-
-    fn sbb(&mut self, val: u8){
+    fn sub(&mut self, val: u8) {
         let reg_a = self.registers.a;
-        let borrow: u8 = if self.condition_codes.carry {1} else {0};                                   
-        let res: u16 = (reg_a as u16).wrapping_sub(val as u16).wrapping_sub(borrow as u16);
-        // put result in accumulator 
+        let res: u16 = (reg_a as u16).wrapping_sub(val as u16);
+        // put result in accumulator
         self.registers.a = res as u8;
         // update flags
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(reg_a < val);
-        self.condition_codes.set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F - (borrow as i8)) >= 0);
+        self.condition_codes
+            .set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F) >= 0);
+    }
+
+    fn sbb(&mut self, val: u8) {
+        let reg_a = self.registers.a;
+        let borrow: u8 = if self.condition_codes.carry { 1 } else { 0 };
+        let res: u16 = (reg_a as u16)
+            .wrapping_sub(val as u16)
+            .wrapping_sub(borrow as u16);
+        // put result in accumulator
+        self.registers.a = res as u8;
+        // update flags
+        self.condition_codes.set_zero(res as u8);
+        self.condition_codes.set_sign(res as u8);
+        self.condition_codes.set_parity(res as u8);
+        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes
+            .set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F - (borrow as i8)) >= 0);
     }
 
     fn adi(&mut self, val: u8) {
@@ -706,18 +713,17 @@ impl Cpu {
         self.adc(val);
     }
 
-    fn sui(&mut self, val: u8){
+    fn sui(&mut self, val: u8) {
         self.sub(val);
     }
 
-    fn sbi(&mut self, val: u8){
+    fn sbi(&mut self, val: u8) {
         self.sbb(val);
     }
 
     // inx
     // dcx
     // dad
-
 }
 
 #[cfg(test)]
@@ -1086,7 +1092,6 @@ mod tests {
         assert_eq!(cpu.condition_codes.aux_carry, true);
     }
 
-
     #[test]
     fn test_sub() {
         let mut cpu = Cpu::new();
@@ -1146,5 +1151,4 @@ mod tests {
         assert_eq!(cpu.condition_codes.parity, true);
         assert_eq!(cpu.condition_codes.aux_carry, true);
     }
-
 }
