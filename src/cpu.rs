@@ -72,6 +72,11 @@ impl Cpu {
             };
         }
 
+        // Macro for the arithmetic and logic unit (ALU) non immediate instruction. 
+        // This macro will call the provided function name ($func) along with an 
+        // operand ($operand). The operands accepted are either registers or memory 
+        // addresses. Match the operand to the cpu's register or memory location and  
+        // call the function. Return a tuple with the new pc and instruction cycles.
         macro_rules! alu_non_immediate {
             ($func:ident, $operand: ident) => {{
                 let val = match $operand {
@@ -95,7 +100,11 @@ impl Cpu {
                 )
             }};
         }
-
+        
+        // Macro for arithmetic and logic unit (ALU) immediate instructions. 
+        // This macro will call the provided function name ($func) along with a 
+        // memory address ($val) and return a tuple with the new pc and number 
+        // of cycles.
         macro_rules! alu_immediate {
             ($func:ident, $val: ident) => {{
                 self.$func($val);
@@ -497,7 +506,7 @@ impl Cpu {
     fn rlc(&mut self) {
         let carry = (self.registers.a & 0x80) >> 7;
         self.registers.a = self.registers.a << 1 | carry;
-        self.condition_codes.carry = (self.registers.a & 0x01) > 0;
+        self.condition_codes.carry = (self.registers.a & 0x1) > 0;
     }
 
     fn rrc(&mut self) {
@@ -515,9 +524,9 @@ impl Cpu {
 
     fn rar(&mut self) {
         let carry_bit = if self.condition_codes.carry { 1 } else { 0 };
-        let low_bit = self.registers.a & 0x01;
+        let low_bit = self.registers.a & 0x1;
         self.registers.a = (self.registers.a >> 1) | (carry_bit << 7);
-        self.condition_codes.carry = low_bit == 0x01;
+        self.condition_codes.carry = low_bit == 0x1;
     }
 
     fn cma(&mut self) {
@@ -533,9 +542,9 @@ impl Cpu {
     }
 
     fn daa(&mut self) {
-        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.aux_carry {
+        if (self.registers.a & 0xF > 0x9) || self.condition_codes.aux_carry {
             let high_bit = self.registers.a & 0x8;
-            self.registers.a = self.registers.a.wrapping_add(0x06);
+            self.registers.a = self.registers.a.wrapping_add(0x6);
             self.condition_codes.aux_carry = (self.registers.a & 0x8) < high_bit;
         }
         if (self.registers.a & 0xF0 > 0x90) || self.condition_codes.carry {
@@ -550,22 +559,23 @@ impl Cpu {
         self.condition_codes.set_parity(self.registers.a);
     }
 
-    // arithmetic group
+    // The specified byte is added to the contents of the accumulator. 
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn add(&mut self, val: u8) {
-        // val is value containted in register
         let reg_a = self.registers.a;
         let res: u16 = (reg_a as u16).wrapping_add(val as u16);
         // put result in accumulator
         self.registers.a = res as u8;
-        // update flags
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(res > 0xFF);
         self.condition_codes
-            .set_aux_carry((reg_a & 0x0F) + (val & 0x0F) > 0x0F);
+            .set_aux_carry((reg_a & 0xF) + (val & 0xF) > 0xF);
     }
 
+    // The specified register or memory byte is incremented by one.
+    // Condition bits affected: Zero, Sign, Parity, Auxiliary Carry
     fn inr(&mut self, reg: Operand) {
         let res = match reg {
             Operand::A => {
@@ -607,10 +617,11 @@ impl Cpu {
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes
-            .set_aux_carry((res.wrapping_sub(1) & 0x0F) == 0x00);
+        self.condition_codes.set_aux_carry((res & 0xF) == 0x0);
     }
 
+    // The specified register or memory byte is decremented by one.
+    // Condition bits affected: Zero, Sign, Parity, Auxiliary Carry
     fn dcr(&mut self, reg: Operand) {
         let res = match reg {
             Operand::A => {
@@ -646,17 +657,19 @@ impl Cpu {
                 self.memory[location] = self.memory[location].wrapping_sub(1);
                 self.memory[location]
             }
-            _ => panic!("INR only accepts registers or a memory location"),
+            _ => panic!("DCR only accepts registers or a memory location"),
         };
         // update flags
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes
-            .set_aux_carry((res.wrapping_add(1) & 0x0F) == 0x00);
+        self.condition_codes.set_aux_carry((res & 0xF) != 0xF);
     }
-
+    
+    // The specified byte plus the content of the Carry bit is added to the contents 
+    // of the accumulator.
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry  
     fn adc(&mut self, val: u8) {
         let reg_a = self.registers.a;
         let carry: u8 = if self.condition_codes.carry { 1 } else { 0 };
@@ -671,9 +684,13 @@ impl Cpu {
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(res > 0xFF);
         self.condition_codes
-            .set_aux_carry((reg_a & 0x0F) + (val & 0x0F) + (carry & 0x0F) > 0x0F);
+            .set_aux_carry((reg_a & 0xF) + (val & 0xF) + (carry & 0xF) > 0xF);
     }
 
+    // The specified byte is subtracted from the accumulator. If there is no carry 
+    // out of the high-order bit position, indicating that a borrow occurred, the 
+    // Carry bit is set; otherwise it is reset.
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry 
     fn sub(&mut self, val: u8) {
         let reg_a = self.registers.a;
         let res: u16 = (reg_a as u16).wrapping_sub(val as u16);
@@ -685,9 +702,12 @@ impl Cpu {
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(reg_a < val);
         self.condition_codes
-            .set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F) >= 0);
+            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) >= 0);
     }
 
+    // The Carry bit is internally added to the contents of the specified byte. This 
+    // value is then subtracted from the accumulator. 
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry 
     fn sbb(&mut self, val: u8) {
         let reg_a = self.registers.a;
         let borrow: u8 = if self.condition_codes.carry { 1 } else { 0 };
@@ -702,28 +722,32 @@ impl Cpu {
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(reg_a < val);
         self.condition_codes
-            .set_aux_carry((reg_a as i8 & 0x0F) - (val as i8 & 0x0F - (borrow as i8)) >= 0);
+            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF - (borrow as i8)) >= 0);
     }
 
+    // The byte of immediate data is added to the contents of the accumulator. 
+    // See add(&mut self, val); 
     fn adi(&mut self, val: u8) {
         self.add(val);
     }
 
+    // The byte of immediate data is added to the contents of the accumulator plus 
+    // the contents of the carry bit. See adc(&mut self, val);
     fn aci(&mut self, val: u8) {
         self.adc(val);
     }
 
+    // The byte of immediate data is subtracted from the contents of the accumulator
+    // See. sub(&mut self, val).
     fn sui(&mut self, val: u8) {
         self.sub(val);
     }
 
+    // The Carry bit is internally added to the byte of immediate data. This value 
+    // is then subtracted from the accumulator. See sub(&mut self, val).
     fn sbi(&mut self, val: u8) {
         self.sbb(val);
     }
-
-    // inx
-    // dcx
-    // dad
 }
 
 #[cfg(test)]
@@ -844,10 +868,10 @@ mod tests {
     #[test]
     fn test_pchl() {
         let mut cpu = Cpu::new();
-        cpu.registers.h = 0x01;
-        cpu.registers.l = 0x02;
+        cpu.registers.h = 0x1;
+        cpu.registers.l = 0x2;
         let (next_pc, _) = cpu.execute(&Instruction::PCHL);
-        assert_eq!(next_pc, 0x0102);
+        assert_eq!(next_pc, 0x102);
     }
 
     // TODO add CALL and RET test once push/pop are complete
