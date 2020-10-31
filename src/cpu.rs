@@ -396,70 +396,90 @@ impl Cpu {
         self.call(addr as u16)
     }
 
-    fn push(&self, addr: u16) -> u16 {
-        self.memory = addr;
-        self.sp -= 2; 
-        0
-        //TODO:
+    // Push Data Onto Stack
+    // TODO: Also need special case for PUSH PSW
+    fn push(&self, addr: u16) {
+        self.memory[self.sp as usize -1] = addr as u8;
+        self.memory[self.sp as usize -2] = (addr >> 8) as u8; 
+        self.sp.wrapping_sub(2);
     }
 
-    fn pop(&self, addr: u16) -> u16 {
-        // TODO
-        self.memory
-        self.sp += 2;
-        self.memory[sp]
+    // Pop Data Off Stack
+    // TODO: Also need special case for POP PSW
+    fn pop(&self, addr: u16) {
+        self.memory[self.sp as usize] = addr as u8;
+        self.memory[self.sp as usize + 1] = (addr >> 8) as u8;
+        self.sp.wrapping_add(2);
     }
 
-    
+    // Double Add
+    // The 16-bit number in the specified register pair is added to the
+    // 16-bit number held in the H and L registers using two's complement arithmetic.
+    // The result replaces the contents of the H and L registers
+    // TODO:
     fn dad(&self, val: u16) {
-        let res: u16 = val + 
-        //TODO:
+        //let res: u16 = val + 
     }
 
-    fn dcx(&self, val: u16) -> u16 {
-        let res: u16 = val - 1;
-        res
+    // Decrement Register Pair
+    // The 16-bit number held in the specified register pair is decremented by one
+    fn dcx(&self, val: u16) {
+        let res: u16 = val.wrapping_sub(1);
+        val = res;
     }
 
-    fn inx(&self, val: u16) -> u16 {
-        let res: u16 = val + 1;
-        res
+    // Increment Register Pair
+    // The 16-bit number held in the specified register pair in incremented by one
+    fn inx(&self, val: u16) {
+        let res: u16 = val.wrapping_add(1);
+        val = res;
     }
 
+    // Halt instruction
+    // Emulator 101 says it may not be necessary to emulate and suggests exiting if encountered
     fn hlt(&self) {
-        //Halt instruction. exits program.
         process::exit(1);
     }
 
+    // IN: Input (in is a reserved keyword so 'fn input' is used instead)
+    // An eight-bit data byte is read from input device number exp and replaces
+    // the contents of the accumulator
     fn input(&self) { //IN is a reserved keyword
         //TODO: for now doesn't do anything
-        //Emulator 101 says to implement later
+        //Emulator 101 says to revisit later
         //http://www.emulator101.com/io-and-special-group.html
     }
 
+    // OUT: Output (changed to 'fn output' to match 'input')
+    // The contents of the accumulator are sent to output device number exp
     fn output(&self) { //OUT
         //TODO: for now doesn't do anything
-        //Emulator 101 says to implement later
+        //Emulator 101 says to revisit later
         //http://www.emulator101.com/io-and-special-group.html
     }
 
+    // Enable Interrupts
+    // Sets the interrupt flag
     fn ei(&self) {
         self.interrupts_enabled = true;
     }
 
+    // Disable Interrupts
+    // Clears the interrupt flag
     fn di(&self) {
         self.interrupts_enabled = false;
     }
 
+    // No Operation
+    // Execution proceeds with the next sequential instruction
     fn nop(&self) {
-        //no operation
     }
 
-    // fn rim(&self) {
+    //fn rim(&self) {
     //  not used for Space Invaders
-    // }
+    //}
 
-    // fn sim(&sim) {
+    //fn sim(&self) {
     //  not used for Space Invaders
     //}
 }
@@ -793,9 +813,9 @@ mod tests {
         cpu.execute(&Instruction::INX(Operand::D));
         assert_eq!(cpu.registers.d, 0x39);
         assert_eq!(cpu.registers.e, 0xFF);
-        cpu.sp = 0xFF;
+        cpu.sp = 0xFFFF;
         cpu.execute(&Instruction::INX(Operand::SP));
-        assert_eq!(cpu.sp, 0x00);
+        assert_eq!(cpu.sp, 0x0000);
     }
 
     #[test]
@@ -811,22 +831,70 @@ mod tests {
     #[test]
     fn test_dad() {
         let mut cpu = Cpu::new();
-        //TODO:
-        cpu.execute(&Instruction::DAD);
+        cpu.registers.b = 0x33;
+        cpu.registers.c = 0x9F;
+        cpu.condition_codes.carry = true;
+        cpu.execute(&Instruction::DAD(Operand::B));
+        assert_eq!(cpu.registers.h, 0xA1);
+        assert_eq!(cpu.registers.l, 0x7b);
+        assert_eq!(cpu.condition_codes.carry, false);
     }
 
     #[test]
     fn test_push() {
         let mut cpu = Cpu::new();
-        //TODO:
-        cpu.execute(&Instruction::PUSH);
+        cpu.registers.d = 0x8F;
+        cpu.registers.e = 0x9D;
+        cpu.sp = 0x3A2C;
+        cpu.execute(&Instruction::PUSH(Operand::D));
+        assert_eq!(cpu.memory[0x3A2B], 0x8F);
+        assert_eq!(cpu.memory[0x3A3A], 0x9D);
+        assert_eq!(cpu.sp, 0x3A2A);
+        //PUSH PSW
+        cpu.registers.a = 0x1F;
+        cpu.sp = 0x502A;
+        cpu.condition_codes.carry = true;
+        cpu.condition_codes.zero = true;
+        cpu.condition_codes.parity = true;
+        cpu.condition_codes.sign = false;
+        cpu.condition_codes.aux_carry = false;
+        cpu.execute(&Instruction::PUSH(Operand::PSW));
+        assert_eq!(cpu.memory[0x5029], 0x1F);
+        assert_eq!(cpu.memory[0x5028], 0x47);
+        assert_eq!(cpu.sp, 0x5028);
+        assert_eq!(cpu.condition_codes.carry, false);
+        assert_eq!(cpu.condition_codes.zero, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.parity, false);
     }
 
     #[test]
     fn test_pop() {
         let mut cpu = Cpu::new();
-        //TODO:
-        cpu.execute(&Instruction::POP);
+        cpu.memory[0x1239] = 0x3D;
+        cpu.memory[0x123A] = 0x93;
+        cpu.sp = 0x1239;
+        cpu.execute(&Instruction::POP(Operand::H));
+        assert_eq!(cpu.registers.l, 0x3D);
+        assert_eq!(cpu.registers.h, 0x93);
+        assert_eq!(cpu.sp, 0x123B);
+        //POP PSW
+        cpu.condition_codes.carry = false;
+        cpu.condition_codes.zero = false;
+        cpu.condition_codes.aux_carry = true;
+        cpu.condition_codes.sign = false;
+        cpu.condition_codes.parity = true;
+        cpu.memory[0x2C00] = 0xC3;
+        cpu.memory[0x2C01] = 0xFF;
+        cpu.sp = 0x2C00;
+        cpu.execute(&Instruction::POP(Operand::PSW));
+        assert_eq!(cpu.registers.a, 0xFF);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.zero, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.parity, false);
     }
 
     #[test]
@@ -844,13 +912,13 @@ mod tests {
         assert_eq!(cpu.interrupts_enabled, false);
     }
 
-    //TODO: not implemented yet
+    //TODO: main function not yet implemented
     #[test]
     fn test_input() { //IN opcode ('in' is a reserved keyword)
     
     }
 
-    //TODO: not implemented yet
+    //TODO: main function not yet implemented
     #[test]
     fn test_output() { //OUT opcode
 
