@@ -168,6 +168,14 @@ impl Cpu {
             Instruction::STC => flag_or_register_modify!(stc),
             Instruction::CMC => flag_or_register_modify!(cmc),
             Instruction::DAA => flag_or_register_modify!(daa),
+            Instruction::PUSH(op) => unconditional!(push, op),
+            Instruction::POP(op) => unconditional!(pop),
+            Instruction::EI => unconditional!(ei),
+            Instruction::DI => unconditional!(di),
+            Instruction::NOP => unconditional!(nop),
+            Instruction::HLT => unconditional!(hlt),
+            Instruction::IN(input) => unconditional!(input),
+            Instruction::OUT(output) => unconditional!(output),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -397,7 +405,7 @@ impl Cpu {
     }
 
     // Push Data Onto Stack
-    // TODO: Also need special case for PUSH PSW
+    // TODO: Also need special case for PUSH PSW?
     fn push(&self, addr: u16) {
         self.memory[self.sp as usize -1] = addr as u8;
         self.memory[self.sp as usize -2] = (addr >> 8) as u8; 
@@ -405,11 +413,13 @@ impl Cpu {
     }
 
     // Pop Data Off Stack
-    // TODO: Also need special case for POP PSW
-    fn pop(&self, addr: u16) {
-        self.memory[self.sp as usize] = addr as u8;
-        self.memory[self.sp as usize + 1] = (addr >> 8) as u8;
+    // TODO: Also need special case for POP PSW? Needs to return a value.
+    fn pop(&self) -> u16 {
+        let res = self.memory[self.sp as usize] as u16 | (self.memory[self.sp as usize + 1] << 8) as u16;
+        self.memory[self.sp as usize];
+        self.memory[self.sp as usize + 1];
         self.sp.wrapping_add(2);
+        res
     }
 
     // Double Add
@@ -419,10 +429,16 @@ impl Cpu {
     // TODO:
     fn dad(&self, val: u16) {
         //let res: u16 = val + 
+        let tmp = self.registers.get_hl(); 
+        let res = tmp.wrapping_add(val);  
+        self.condition_codes.set_carry(true); 
+        self.registers.h = (res >> 8) as u8;
+        self.registers.l =  res as u8;    
     }
 
     // Decrement Register Pair
     // The 16-bit number held in the specified register pair is decremented by one
+    // TODO: doesn't store results properly?
     fn dcx(&self, val: u16) {
         let res: u16 = val.wrapping_sub(1);
         val = res;
@@ -430,6 +446,7 @@ impl Cpu {
 
     // Increment Register Pair
     // The 16-bit number held in the specified register pair in incremented by one
+    // TODO: doesn't store results properly?
     fn inx(&self, val: u16) {
         let res: u16 = val.wrapping_add(1);
         val = res;
