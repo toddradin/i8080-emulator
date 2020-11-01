@@ -8,6 +8,31 @@ pub struct ConditionCodes {
 }
 
 impl ConditionCodes {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn set_all(&mut self) {
+        self.zero = true;
+        self.sign = true;
+        self.parity = true;
+        self.carry = true;
+        self.aux_carry = true;
+    }
+
+    pub fn clear_all(&mut self) {
+        self.zero = false;
+        self.sign = false;
+        self.parity = false;
+        self.carry = false;
+        self.aux_carry = false;
+    }
+
+    pub fn set_all_except_carry(&mut self) {
+        self.set_all();
+        self.carry = false;
+    }
+
     pub fn set_carry(&mut self, carry: bool) {
         self.carry = carry
     }
@@ -29,6 +54,10 @@ impl ConditionCodes {
     }
 
     pub fn set_aux_carry(&mut self, aux_carry: bool) {
-        self.aux_carry = aux_carry;
+        self.aux_carry = aux_carry
+    }
+
+    pub fn reset_aux_carry(&mut self) {
+        self.aux_carry = false
     }
 }
