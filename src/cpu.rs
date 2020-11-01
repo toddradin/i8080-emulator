@@ -5,7 +5,7 @@ use crate::registers::Registers;
 #[allow(dead_code)]
 pub struct Cpu {
     pub registers: Registers,
-    pub sp: u8,
+    pub sp: u16,
     pub pc: u16,
     pub memory: [u8; 0xFFFF],
     pub condition_codes: ConditionCodes,
@@ -207,6 +207,41 @@ impl Cpu {
             }
             Instruction::DCR(op) => {
                 self.dcr(op);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::MOV(dest, src) => {
+                self.mov(dest, src);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::MVI(dest, val) => {
+                self.mvi(dest, val);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::LXI(dest, val) => {
+                self.lxi(dest, val);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::STAX(reg) => {
+                self.stax(reg);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::LDAX(reg) => {
+                self.ldax(reg);
                 (
                     self.pc.wrapping_add(instruction.size()),
                     instruction.cycles(),
@@ -885,6 +920,95 @@ impl Cpu {
     fn sbi(&mut self, val: u8) {
         self.sbb(val);
     }
+
+    // One byte of data is moved from the register specified by src (the source
+    // register) to the register specified by dst (the destination register).
+    // The data re- places the contents of the destination register; the source
+    // remains unchanged.
+    // Condition bits affected: None
+    fn mov(&mut self, dest: Operand, src: Operand) {
+        let src = match src {
+            Operand::A => self.registers.a,
+            Operand::B => self.registers.b,
+            Operand::C => self.registers.c,
+            Operand::D => self.registers.d,
+            Operand::E => self.registers.e,
+            Operand::H => self.registers.h,
+            Operand::L => self.registers.l,
+            Operand::M => self.memory[self.registers.get_hl() as usize],
+            _ => panic!("MOV only accepts registers or a memory location",),
+        };
+
+        match dest {
+            Operand::A => self.registers.a = src,
+            Operand::B => self.registers.b = src,
+            Operand::C => self.registers.c = src,
+            Operand::D => self.registers.d = src,
+            Operand::E => self.registers.e = src,
+            Operand::H => self.registers.h = src,
+            Operand::L => self.registers.l = src,
+            Operand::M => self.memory[self.registers.get_hl() as usize] = src,
+            _ => panic!("MOV only accepts registers or a memory location",),
+        }
+    }
+
+    // The byte of immediate data is stored in the specified register or memory
+    // byte.
+    // Condition bits affected: None
+    fn mvi(&mut self, dest: Operand, val: u8) {
+        match dest {
+            Operand::A => self.registers.a = val,
+            Operand::B => self.registers.b = val,
+            Operand::C => self.registers.c = val,
+            Operand::D => self.registers.d = val,
+            Operand::E => self.registers.e = val,
+            Operand::H => self.registers.h = val,
+            Operand::L => self.registers.l = val,
+            Operand::M => self.memory[self.registers.get_hl() as usize] = val,
+            _ => panic!("MVI only accepts registers or a memory location",),
+        }
+    }
+
+    // The third byte of the instruction (the most significant 8 bits of the
+    // 16-bit immediate data) is loaded into the first register of the
+    // specified pair, while the second byte of the instruction (the least
+    // significant 8 bits of the 16-bit immediate data) is loaded into the
+    // second register of the specified pair. If SP is specified as the
+    // register pair, the second byte of the instruction replaces the least
+    // significant 8 bits of the stack pointer, while the third byte of the
+    // instruction replaces the most significant 8 bits of the stack pointer.
+    // Condition bits affected: None
+    fn lxi(&mut self, dest: Operand, val: u16) {
+        match dest {
+            Operand::B => self.registers.set_bc(val),
+            Operand::D => self.registers.set_de(val),
+            Operand::H => self.registers.set_hl(val),
+            Operand::SP => self.sp = val,
+            _ => panic!("LXI only accepts B, D, H, or SP as destinations",),
+        }
+    }
+
+    // The contents of the accumulator are stored in the memory location
+    // addressed by registers B and C, or by registers D and E.
+    // Condition bits affected: None
+    fn stax(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => self.memory[self.registers.get_bc() as usize] = self.registers.a,
+            Operand::D => self.memory[self.registers.get_de() as usize] = self.registers.a,
+            _ => panic!("STAX only accepts B and D as operands",),
+        }
+    }
+
+    // The contents of the memory location addressed by registers B and C, or
+    // by registers D and E, replace the contents of the accumulator.
+    // Condition bits affected: None
+    fn ldax(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => self.registers.a = self.memory[self.registers.get_bc() as usize],
+            Operand::D => self.registers.a = self.memory[self.registers.get_de() as usize],
+            _ => panic!("LDAX only accepts B and D as operands",),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1321,5 +1445,60 @@ mod tests {
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, true);
         assert_eq!(cpu.condition_codes.aux_carry, true);
+    }
+
+    #[test]
+    fn test_mov() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0;
+        cpu.registers.e = 0x2B;
+        cpu.execute(&Instruction::MOV(Operand::A, Operand::E));
+        assert_eq!(cpu.registers.a, 0x2B);
+        assert_eq!(cpu.registers.e, 0x2B);
+
+        cpu.registers.a = 0x5A;
+        cpu.registers.h = 0x2B;
+        cpu.registers.l = 0xE9;
+        cpu.execute(&Instruction::MOV(Operand::M, Operand::A));
+        assert_eq!(cpu.memory[0x2BE9], 0x5A);
+        assert_eq!(cpu.registers.a, 0x5A);
+        assert_eq!(cpu.registers.h, 0x2B);
+        assert_eq!(cpu.registers.l, 0xE9);
+    }
+
+    #[test]
+    fn test_mvi() {
+        let mut cpu = Cpu::new();
+        assert_eq!(cpu.registers.b, 0);
+        cpu.execute(&Instruction::MVI(Operand::B, 0x3C));
+        assert_eq!(cpu.registers.b, 0x3C);
+    }
+
+    #[test]
+    fn test_lxi() {
+        let mut cpu = Cpu::new();
+        cpu.execute(&Instruction::LXI(Operand::H, 0x103));
+        assert_eq!(cpu.registers.h, 0x1);
+        assert_eq!(cpu.registers.l, 0x3);
+    }
+
+    #[test]
+    fn test_stax() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0x5C;
+        cpu.registers.b = 0x3F;
+        cpu.registers.c = 0x16;
+        cpu.execute(&Instruction::STAX(Operand::B));
+        assert_eq!(cpu.memory[0x3F16], 0x5C);
+    }
+
+    #[test]
+    fn test_ldax() {
+        let mut cpu = Cpu::new();
+        cpu.registers.d = 0x93;
+        cpu.registers.e = 0x8B;
+        cpu.memory[0x938B] = 0x5C;
+        cpu.execute(&Instruction::LDAX(Operand::D));
+        assert_eq!(cpu.registers.a, 0x5C);
     }
 }
