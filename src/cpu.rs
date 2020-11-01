@@ -72,10 +72,10 @@ impl Cpu {
             };
         }
 
-        // Macro for the arithmetic and logic unit (ALU) non immediate instruction. 
-        // This macro will call the provided function name ($func) along with an 
-        // operand ($operand). The operands accepted are either registers or memory 
-        // addresses. Match the operand to the cpu's register or memory location and  
+        // Macro for the arithmetic and logic unit (ALU) non immediate instruction.
+        // This macro will call the provided function name ($func) along with an
+        // operand ($operand). The operands accepted are either registers or memory
+        // addresses. Match the operand to the cpu's register or memory location and
         // call the function. Return a tuple with the new pc and instruction cycles.
         macro_rules! alu_non_immediate {
             ($func:ident, $operand: ident) => {{
@@ -100,10 +100,10 @@ impl Cpu {
                 )
             }};
         }
-        
-        // Macro for arithmetic and logic unit (ALU) immediate instructions. 
-        // This macro will call the provided function name ($func) along with a 
-        // memory address ($val) and return a tuple with the new pc and number 
+
+        // Macro for arithmetic and logic unit (ALU) immediate instructions.
+        // This macro will call the provided function name ($func) along with a
+        // memory address ($val) and return a tuple with the new pc and number
         // of cycles.
         macro_rules! alu_immediate {
             ($func:ident, $val: ident) => {{
@@ -559,7 +559,7 @@ impl Cpu {
         self.condition_codes.set_parity(self.registers.a);
     }
 
-    // The specified byte is added to the contents of the accumulator. 
+    // The specified byte is added to the contents of the accumulator.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn add(&mut self, val: u8) {
         let reg_a = self.registers.a;
@@ -666,10 +666,10 @@ impl Cpu {
         self.condition_codes.set_parity(res);
         self.condition_codes.set_aux_carry((res & 0xF) == 0xF);
     }
-    
-    // The specified byte plus the content of the Carry bit is added to the contents 
+
+    // The specified byte plus the content of the Carry bit is added to the contents
     // of the accumulator.
-    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry  
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn adc(&mut self, val: u8) {
         let reg_a = self.registers.a;
         let carry: u8 = if self.condition_codes.carry { 1 } else { 0 };
@@ -687,10 +687,10 @@ impl Cpu {
             .set_aux_carry((reg_a & 0xF) + (val & 0xF) + (carry & 0xF) > 0xF);
     }
 
-    // The specified byte is subtracted from the accumulator. If there is no carry 
-    // out of the high-order bit position, indicating that a borrow occurred, the 
+    // The specified byte is subtracted from the accumulator. If there is no carry
+    // out of the high-order bit position, indicating that a borrow occurred, the
     // Carry bit is set; otherwise it is reset.
-    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry 
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn sub(&mut self, val: u8) {
         let reg_a = self.registers.a;
         let res: u16 = (reg_a as u16).wrapping_sub(val as u16);
@@ -705,9 +705,9 @@ impl Cpu {
             .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) >= 0);
     }
 
-    // The Carry bit is internally added to the contents of the specified byte. This 
-    // value is then subtracted from the accumulator. 
-    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry 
+    // The Carry bit is internally added to the contents of the specified byte. This
+    // value is then subtracted from the accumulator.
+    // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn sbb(&mut self, val: u8) {
         let reg_a = self.registers.a;
         let borrow: u8 = if self.condition_codes.carry { 1 } else { 0 };
@@ -725,13 +725,13 @@ impl Cpu {
             .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF - (borrow as i8)) >= 0);
     }
 
-    // The byte of immediate data is added to the contents of the accumulator. 
-    // See add(&mut self, val); 
+    // The byte of immediate data is added to the contents of the accumulator.
+    // See add(&mut self, val);
     fn adi(&mut self, val: u8) {
         self.add(val);
     }
 
-    // The byte of immediate data is added to the contents of the accumulator plus 
+    // The byte of immediate data is added to the contents of the accumulator plus
     // the contents of the carry bit. See adc(&mut self, val);
     fn aci(&mut self, val: u8) {
         self.adc(val);
@@ -743,7 +743,7 @@ impl Cpu {
         self.sub(val);
     }
 
-    // The Carry bit is internally added to the byte of immediate data. This value 
+    // The Carry bit is internally added to the byte of immediate data. This value
     // is then subtracted from the accumulator. See sub(&mut self, val).
     fn sbi(&mut self, val: u8) {
         self.sbb(val);
