@@ -664,7 +664,7 @@ impl Cpu {
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((res & 0xF) != 0xF);
+        self.condition_codes.set_aux_carry((res & 0xF) == 0xF);
     }
     
     // The specified byte plus the content of the Carry bit is added to the contents 
