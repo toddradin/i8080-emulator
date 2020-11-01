@@ -215,7 +215,7 @@ impl Cpu {
             Instruction::INR(op) => flag_or_register_modify!(inr, op),
             Instruction::DCR(op) => flag_or_register_modify!(dcr, op),
             Instruction::MOV(dest, src) => flag_or_register_modify!(mov, dest, src),
-            Instruction::MVI(dest, val) => flag_or_register_modify!(mvi, dest, val), 
+            Instruction::MVI(dest, val) => flag_or_register_modify!(mvi, dest, val),
             Instruction::LXI(dest, val) => flag_or_register_modify!(lxi, dest, val),
             Instruction::STAX(reg) => flag_or_register_modify!(stax, reg),
             Instruction::LDAX(reg) => flag_or_register_modify!(ldax, reg),
