@@ -38,10 +38,10 @@ impl Cpu {
         }
 
         // Macro for a conditional branch instruction. This macro will call the
-        // provided function name ($func) along with an address ($addr). If 
+        // provided function name ($func) along with an address ($addr). If
         // Some is returned from the function, the condition has been met. If
         // met, return a tuple with the returned address and the number of
-        // cycles. Otherwise return a tuple with the pc incremented by the 
+        // cycles. Otherwise return a tuple with the pc incremented by the
         // instruction size and the number of cycles.
         macro_rules! conditional_branch {
             ($func:ident, $addr:ident) => {
@@ -55,11 +55,11 @@ impl Cpu {
             };
         }
 
-        // Macro for a conditional subroutine instruction. This macro will call 
-        // the provided function name ($func) along with an address ($addr) if 
-        // provided. If Some is returned from the function, the condition has 
-        // been met. If met, the instruction's higher cycle value is taken. 
-        // Otherwise, take the default instruction size. The higher value is 
+        // Macro for a conditional subroutine instruction. This macro will call
+        // the provided function name ($func) along with an address ($addr) if
+        // provided. If Some is returned from the function, the condition has
+        // been met. If met, the instruction's higher cycle value is taken.
+        // Otherwise, take the default instruction size. The higher value is
         // always the lower value + 6. Return a tuple with the next pc and the
         // number of cycles.
         macro_rules! conditional_subroutine {
@@ -83,10 +83,10 @@ impl Cpu {
             };
         }
 
-        // Macro for a logical non immediate instruction. This macro will call 
+        // Macro for a logical non immediate instruction. This macro will call
         // the provided function name ($func) along with an operand ($operand).
-        // The operands accepted are either registers or memory addresses. 
-        // Match the operand to the cpu's register or memory location and call 
+        // The operands accepted are either registers or memory addresses.
+        // Match the operand to the cpu's register or memory location and call
         // the function. Return a tuple with the new pc and instruction cycles.
         macro_rules! logical_non_immediate {
             ($func:ident, $operand: ident) => {{
@@ -112,8 +112,8 @@ impl Cpu {
             }};
         }
 
-        // Macro for logical immediate instructions. This macro will call 
-        // the provided function name ($func) along with a memory address 
+        // Macro for logical immediate instructions. This macro will call
+        // the provided function name ($func) along with a memory address
         // ($val) and return a tuple with the new pc and number of cycles.
         macro_rules! logical_immediate {
             ($func:ident, $val: ident) => {{
@@ -127,7 +127,7 @@ impl Cpu {
 
         // Macro for the instructions that modify flags or registers (Rotate
         // and Special groups). This macro will call the provided function
-        // name ($func) and return a tuple with the new pc and number of 
+        // name ($func) and return a tuple with the new pc and number of
         // cycles.
         macro_rules! flag_or_register_modify {
             ($func:ident) => {{
