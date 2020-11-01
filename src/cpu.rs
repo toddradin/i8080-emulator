@@ -131,6 +131,20 @@ impl Cpu {
         // name ($func) and return a tuple with the new pc and number of
         // cycles.
         macro_rules! flag_or_register_modify {
+            ($func:ident, $dst: ident, $src: ident) => {{
+                self.$func($dst, $src);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
+            ($func:ident, $addr: ident) => {{
+                self.$func($addr);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }};
             ($func:ident) => {{
                 self.$func();
                 (
@@ -198,55 +212,18 @@ impl Cpu {
             Instruction::ACI(val) => alu_immediate!(aci, val),
             Instruction::SUI(val) => alu_immediate!(sui, val),
             Instruction::SBI(val) => alu_immediate!(sbi, val),
-            Instruction::INR(op) => {
-                self.inr(op);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
-            Instruction::DCR(op) => {
-                self.dcr(op);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
-            Instruction::MOV(dest, src) => {
-                self.mov(dest, src);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
-            Instruction::MVI(dest, val) => {
-                self.mvi(dest, val);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
-            Instruction::LXI(dest, val) => {
-                self.lxi(dest, val);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
-            Instruction::STAX(reg) => {
-                self.stax(reg);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
-            Instruction::LDAX(reg) => {
-                self.ldax(reg);
-                (
-                    self.pc.wrapping_add(instruction.size()),
-                    instruction.cycles(),
-                )
-            }
+            Instruction::INR(op) => flag_or_register_modify!(inr, op),
+            Instruction::DCR(op) => flag_or_register_modify!(dcr, op),
+            Instruction::MOV(dest, src) => flag_or_register_modify!(mov, dest, src),
+            Instruction::MVI(dest, val) => flag_or_register_modify!(mvi, dest, val), 
+            Instruction::LXI(dest, val) => flag_or_register_modify!(lxi, dest, val),
+            Instruction::STAX(reg) => flag_or_register_modify!(stax, reg),
+            Instruction::LDAX(reg) => flag_or_register_modify!(ldax, reg),
+            Instruction::STA(addr) => flag_or_register_modify!(sta, addr),
+            Instruction::LDA(addr) => flag_or_register_modify!(lda, addr),
+            Instruction::SHLD(addr) => flag_or_register_modify!(shld, addr),
+            Instruction::LHLD(addr) => flag_or_register_modify!(lhld, addr),
+            Instruction::XCHG => flag_or_register_modify!(xchg),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -1009,6 +986,43 @@ impl Cpu {
             _ => panic!("LDAX only accepts B and D as operands",),
         }
     }
+
+    // The contents of the accumulator replace the byte at the memory address given
+    // Condition bits affected: None
+    fn sta(&mut self, addr: u16) {
+        self.memory[addr as usize] = self.registers.a;
+    }
+
+    // The contents at the memory address given replaces the contents of the accumulator
+    // Condition bits affected: None
+    fn lda(&mut self, addr: u16) {
+        self.registers.a = self.memory[addr as usize];
+    }
+
+    // The contents of the L register are stored at the memory address given and the
+    // contents of the H register are stored at the next higher memory address.
+    // Condition bits affected: None
+    fn shld(&mut self, addr: u16) {
+        self.memory[addr as usize] = self.registers.l;
+        self.memory[(addr as usize).wrapping_add(1)] = self.registers.h;
+    }
+
+    // The byte at the memory address formed replaces the contents of the L register.
+    // The byte at the next higher memory address replaces the contents of the H register.
+    // Condition bits affected: None
+    fn lhld(&mut self, addr: u16) {
+        self.registers.l = self.memory[addr as usize];
+        self.registers.h = self.memory[(addr as usize).wrapping_add(1)];
+    }
+
+    // The 16 bits of data held in the H and L registers are exchanged with the 16 bits
+    // of data held in the D and E registers.
+    // Condition bits affected: None
+    fn xchg(&mut self) {
+        let temp = self.registers.get_hl();
+        self.registers.set_hl(self.registers.get_de());
+        self.registers.set_de(temp);
+    }
 }
 
 #[cfg(test)]
@@ -1500,5 +1514,55 @@ mod tests {
         cpu.memory[0x938B] = 0x5C;
         cpu.execute(&Instruction::LDAX(Operand::D));
         assert_eq!(cpu.registers.a, 0x5C);
+    }
+
+    #[test]
+    fn test_sta() {
+        let mut cpu = Cpu::new();
+        cpu.registers.a = 0xFF;
+        cpu.execute(&Instruction::STA(0x5B3));
+        assert_eq!(cpu.memory[0x5b3], 0xFF);
+    }
+
+    #[test]
+    fn test_lda() {
+        let mut cpu = Cpu::new();
+        cpu.memory[0x300] = 0xB;
+        cpu.execute(&Instruction::LDA(0x300));
+        assert_eq!(cpu.registers.a, 0xB);
+    }
+
+    #[test]
+    fn test_shld() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0xAE;
+        cpu.registers.l = 0x29;
+        cpu.execute(&Instruction::SHLD(0x10A));
+        assert_eq!(cpu.memory[0x10A], 0x29);
+        assert_eq!(cpu.memory[0x10B], 0xAE);
+    }
+
+    #[test]
+    fn test_lhld() {
+        let mut cpu = Cpu::new();
+        cpu.memory[0x25B] = 0xFF;
+        cpu.memory[0x25C] = 0x3;
+        cpu.execute(&Instruction::LHLD(0x25B));
+        assert_eq!(cpu.registers.l, 0xFF);
+        assert_eq!(cpu.registers.h, 0x3);
+    }
+
+    #[test]
+    fn test_xchg() {
+        let mut cpu = Cpu::new();
+        cpu.registers.d = 0x33;
+        cpu.registers.e = 0x55;
+        cpu.registers.h = 0x0;
+        cpu.registers.l = 0xFF;
+        cpu.execute(&Instruction::XCHG);
+        assert_eq!(cpu.registers.d, 0x0);
+        assert_eq!(cpu.registers.e, 0xFF);
+        assert_eq!(cpu.registers.h, 0x33);
+        assert_eq!(cpu.registers.l, 0x55);
     }
 }
