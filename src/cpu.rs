@@ -250,7 +250,6 @@ impl Cpu {
             Instruction::XCHG => flag_or_register_modify!(xchg),
             Instruction::XTHL => flag_or_register_modify!(xthl),
             Instruction::SPHL => flag_or_register_modify!(sphl),
-
             Instruction::DAD(val) => flag_or_register_modify!(dad, val),
             Instruction::INX(reg) => flag_or_register_modify!(inx, reg),
             Instruction::DCX(reg) => flag_or_register_modify!(dcx, reg),
@@ -431,8 +430,8 @@ impl Cpu {
         //note: Moved some of the push() code here to help keep that function cleaner
         //can be changed later if there are issues with it.
         //self.push(pc);
-        self.memory[self.sp as usize -1] = pc as u8;
-        self.memory[self.sp as usize -2] = (pc >> 8) as u8;
+        self.memory[self.sp as usize -1] = (pc >> 8) as u8;
+        self.memory[self.sp as usize -2] = pc as u8;
         self.sp = self.sp.wrapping_sub(2);
         addr
     }
@@ -531,20 +530,20 @@ impl Cpu {
         match reg {
             Operand::B => {
                 let res = self.registers.get_bc();
-                self.memory[self.sp as usize -1] = res as u8;
-                self.memory[self.sp as usize -2] = (res >> 8) as u8;
+                self.memory[self.sp as usize -1] = (res >> 8) as u8;
+                self.memory[self.sp as usize -2] = res as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::D => {
                 let res = self.registers.get_de();
-                self.memory[self.sp as usize -1] = res as u8;
-                self.memory[self.sp as usize -2] = (res >> 8) as u8;
+                self.memory[self.sp as usize -1] = (res >> 8) as u8;
+                self.memory[self.sp as usize -2] = res as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::H => {
                 let res = self.registers.get_hl();
-                self.memory[self.sp as usize -1] = res as u8;
-                self.memory[self.sp as usize -2] = (res >> 8) as u8;
+                self.memory[self.sp as usize -1] = (res >> 8) as u8;
+                self.memory[self.sp as usize -2] = res as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::PSW => {
@@ -564,23 +563,24 @@ impl Cpu {
     fn pop(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
-                self.registers.b = self.memory[self.sp as usize];
-                self.registers.c = self.memory[self.sp as usize + 1];
+                self.registers.c = self.memory[self.sp as usize];
+                self.registers.b = self.memory[self.sp as usize + 1];
                 self.sp = self.sp.wrapping_add(2);
             }
             Operand::D => {
-                self.registers.d = self.memory[self.sp as usize];
-                self.registers.e = self.memory[self.sp as usize + 1];
+                self.registers.e = self.memory[self.sp as usize];
+                self.registers.d = self.memory[self.sp as usize + 1];
                 self.sp = self.sp.wrapping_add(2);
             }
             Operand::H => {
-                self.registers.h = self.memory[self.sp as usize];
-                self.registers.l = self.memory[self.sp as usize + 1];
+                self.registers.l = self.memory[self.sp as usize];
+                self.registers.h = self.memory[self.sp as usize + 1];
                 self.sp = self.sp.wrapping_add(2);
             }
             Operand::PSW => {
-                self.registers.a = self.memory[self.sp as usize];
-                let res = self.memory[self.sp as usize + 1];
+                // self.registers.a = self.memory[self.sp as usize];
+                self.registers.a = self.memory[self.sp as usize + 1];
+                let res = self.memory[self.sp as usize];
                 self.condition_codes.psw_to_flags(res);
                 self.sp = self.sp.wrapping_add(2);
             }
@@ -716,6 +716,22 @@ impl Cpu {
     // No Operation
     // Execution proceeds with the next sequential instruction
     fn nop(&self) {
+    }
+
+    // Load SP From H and L
+    fn sphl(&mut self) {
+        self.sp = self.registers.get_hl();
+    }
+
+    // Exchange Stack
+    fn xthl(&mut self) {
+        let tmp_h = self.registers.h;
+        let tmp_l = self.registers.l;
+
+        self.registers.h = self.memory[self.sp as usize + 1];
+        self.registers.l = self.memory[self.sp as usize];
+        self.memory[self.sp as usize] = tmp_l;
+        self.memory[self.sp as usize + 1] = tmp_h;
     }
 
     //fn rim(&self) {
@@ -1254,17 +1270,6 @@ impl Cpu {
         self.registers.set_de(temp);
     }
 
-    //TODO: tests and comments still need to be written for these two
-    fn sphl(&mut self) {
-        self.sp = self.registers.get_hl();
-    }
-
-    fn xthl(&mut self) {
-        let temp = self.registers.get_hl();
-        self.registers.set_hl(self.sp);
-        self.sp = temp;
-    }
-
 }
 
 #[cfg(test)]
@@ -1602,10 +1607,10 @@ mod tests {
     fn test_inx() {
         let mut cpu = Cpu::new();
         cpu.registers.d = 0x38;
-        cpu.registers.e = 0x00;
+        cpu.registers.e = 0xFF;
         cpu.execute(&Instruction::INX(Operand::D));
         assert_eq!(cpu.registers.d, 0x39);
-        assert_eq!(cpu.registers.e, 0xFF);
+        assert_eq!(cpu.registers.e, 0x00);
         cpu.sp = 0xFFFF;
         cpu.execute(&Instruction::INX(Operand::SP));
         assert_eq!(cpu.sp, 0x0000);
@@ -1626,10 +1631,12 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.b = 0x33;
         cpu.registers.c = 0x9F;
+        cpu.registers.h = 0xA1;
+        cpu.registers.l = 0x7B;
         cpu.condition_codes.carry = true;
         cpu.execute(&Instruction::DAD(Operand::B));
-        assert_eq!(cpu.registers.h, 0xA1);
-        assert_eq!(cpu.registers.l, 0x7b);
+        assert_eq!(cpu.registers.h, 0xD5);
+        assert_eq!(cpu.registers.l, 0x1A);
         assert_eq!(cpu.condition_codes.carry, false);
     }
 
@@ -1641,8 +1648,9 @@ mod tests {
         cpu.sp = 0x3A2C;
         cpu.execute(&Instruction::PUSH(Operand::D));
         assert_eq!(cpu.memory[0x3A2B], 0x8F);
-        assert_eq!(cpu.memory[0x3A3A], 0x9D);
+        assert_eq!(cpu.memory[0x3A2A], 0x9D);
         assert_eq!(cpu.sp, 0x3A2A);
+
         //PUSH PSW
         cpu.registers.a = 0x1F;
         cpu.sp = 0x502A;
@@ -1651,15 +1659,11 @@ mod tests {
         cpu.condition_codes.parity = true;
         cpu.condition_codes.sign = false;
         cpu.condition_codes.aux_carry = false;
+     
         cpu.execute(&Instruction::PUSH(Operand::PSW));
         assert_eq!(cpu.memory[0x5029], 0x1F);
         assert_eq!(cpu.memory[0x5028], 0x47);
         assert_eq!(cpu.sp, 0x5028);
-        assert_eq!(cpu.condition_codes.carry, false);
-        assert_eq!(cpu.condition_codes.zero, false);
-        assert_eq!(cpu.condition_codes.aux_carry, true);
-        assert_eq!(cpu.condition_codes.sign, true);
-        assert_eq!(cpu.condition_codes.parity, false);
     }
 
     #[test]
@@ -1672,12 +1676,8 @@ mod tests {
         assert_eq!(cpu.registers.l, 0x3D);
         assert_eq!(cpu.registers.h, 0x93);
         assert_eq!(cpu.sp, 0x123B);
+
         //POP PSW
-        cpu.condition_codes.carry = false;
-        cpu.condition_codes.zero = false;
-        cpu.condition_codes.aux_carry = true;
-        cpu.condition_codes.sign = false;
-        cpu.condition_codes.parity = true;
         cpu.memory[0x2C00] = 0xC3;
         cpu.memory[0x2C01] = 0xFF;
         cpu.sp = 0x2C00;
@@ -1693,7 +1693,8 @@ mod tests {
     #[test]
     fn test_ei() {
         let mut cpu = Cpu::new();
-        cpu.execute(&Instruction::EI);
+        cpu.interrupts_enabled = false;
+        cpu.ei();
         assert_eq!(cpu.interrupts_enabled, true);
     }
 
@@ -1701,21 +1702,45 @@ mod tests {
     fn test_di() {
         let mut cpu = Cpu::new();
         cpu.interrupts_enabled = true;
-        cpu.execute(&Instruction::DI);
+        cpu.di();
         assert_eq!(cpu.interrupts_enabled, false);
     }
 
-    //TODO: main function not yet implemented
     #[test]
-    fn test_input() { //IN opcode ('in' is a reserved keyword)
+    fn test_sphl() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0x50;
+        cpu.registers.l = 0x6C;
+        cpu.execute(&Instruction::SPHL);
+        assert_eq!(cpu.sp, 0x506C);
+    }
+
+    #[test]
+    fn test_xthl() {
+        let mut cpu = Cpu::new();
+        cpu.sp = 0x10AD;
+        cpu.registers.h = 0x0B;
+        cpu.registers.l = 0x3C;
+        cpu.memory[0x10AD] = 0xF0;
+        cpu.memory[0x10AE] = 0x0D;
+        cpu.execute(&Instruction::XTHL);
+        assert_eq!(cpu.registers.h, 0x0D);
+        assert_eq!(cpu.registers.l, 0xF0);
+        assert_eq!(cpu.memory[0x10AD], 0x3C);
+        assert_eq!(cpu.memory[0x10AE], 0x0B);
+    }
+
+    //TODO: main function not yet implemented
+    //#[test]
+    //fn test_input() { //IN opcode ('in' is a reserved keyword)
     
-    }
+    //}
 
     //TODO: main function not yet implemented
-    #[test]
-    fn test_output() { //OUT opcode
+    //#[test]
+    //fn test_output() { //OUT opcode
 
-    }
+    //}
 
     //#[test]
     //fn test_rim() {
@@ -1726,6 +1751,7 @@ mod tests {
     //fn test_sim() {
     //not used in Space Invaders
     //}
+
     fn test_add() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x6C;
