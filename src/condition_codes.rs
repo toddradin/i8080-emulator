@@ -84,9 +84,9 @@ impl ConditionCodes {
 
     pub fn psw_to_flags(&mut self, psw: u8) {
         self.sign = (0x80 & psw) == 0x80;
-        self.carry = (0x01 & psw) == 0x01;
+        self.carry = (0x1 & psw) == 0x1;
         self.zero = (0x40 & psw) == 0x40;
-        self.parity = (0x04 & psw) == 0x04;
+        self.parity = (0x4 & psw) == 0x4;
         self.aux_carry = (0x10 & psw) == 0x10;
     }
 }
