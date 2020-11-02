@@ -579,7 +579,7 @@ impl Cpu {
         self.condition_codes.set_carry(true); 
         //self.registers.h = (res >> 8) as u8;
         //self.registers.l =  res as u8;    
-        self.registers.set_hl(res);
+        self.registers.set_hl(res); 
     }
 
     // Decrement Register Pair
