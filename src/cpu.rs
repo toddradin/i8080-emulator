@@ -206,14 +206,28 @@ impl Cpu {
             Instruction::STC => flag_or_register_modify!(stc),
             Instruction::CMC => flag_or_register_modify!(cmc),
             Instruction::DAA => flag_or_register_modify!(daa),
-            Instruction::PUSH(op) => unconditional!(push, op),
-            Instruction::POP(op) => unconditional!(pop, op),
-            Instruction::EI => unconditional!(ei),
-            Instruction::DI => unconditional!(di),
-            Instruction::NOP => unconditional!(nop),
-            Instruction::HLT => unconditional!(hlt),
-            Instruction::IN(input) => unconditional!(input),
-            Instruction::OUT(output) => unconditional!(output),
+            Instruction::PUSH(op) => flag_or_register_modify!(push, op),
+            Instruction::POP(op) => flag_or_register_modify!(pop, op),
+            Instruction::EI => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::DI => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::HLT => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::IN(input) => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::OUT(output) => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
             Instruction::ADD(op) => alu_non_immediate!(add, op),
             Instruction::ADC(op) => alu_non_immediate!(adc, op),
             Instruction::SUB(op) => alu_non_immediate!(sub, op),
@@ -234,6 +248,12 @@ impl Cpu {
             Instruction::SHLD(addr) => flag_or_register_modify!(shld, addr),
             Instruction::LHLD(addr) => flag_or_register_modify!(lhld, addr),
             Instruction::XCHG => flag_or_register_modify!(xchg),
+            Instruction::XTHL => flag_or_register_modify!(xthl),
+            Instruction::SPHL => flag_or_register_modify!(sphl),
+
+            Instruction::DAD(val) => flag_or_register_modify!(dad, val),
+            Instruction::INX(reg) => flag_or_register_modify!(inx, reg),
+            Instruction::DCX(reg) => flag_or_register_modify!(dcx, reg),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -333,7 +353,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the carry flag is set.
-    fn cc(&self, addr: u16) -> Option<u16> {
+    fn cc(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.carry {
             Some(self.call(addr))
         } else {
@@ -342,7 +362,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the carry flag is not set.
-    fn cnc(&self, addr: u16) -> Option<u16> {
+    fn cnc(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.carry {
             Some(self.call(addr))
         } else {
@@ -351,7 +371,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the zero flag is set.
-    fn cz(&self, addr: u16) -> Option<u16> {
+    fn cz(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.zero {
             Some(self.call(addr))
         } else {
@@ -360,7 +380,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the zero flag is not set.
-    fn cnz(&self, addr: u16) -> Option<u16> {
+    fn cnz(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.zero {
             Some(self.call(addr))
         } else {
@@ -369,7 +389,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the sign flag is not set.
-    fn cp(&self, addr: u16) -> Option<u16> {
+    fn cp(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.sign {
             Some(self.call(addr))
         } else {
@@ -378,7 +398,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the sign flag is set.
-    fn cm(&self, addr: u16) -> Option<u16> {
+    fn cm(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.sign {
             Some(self.call(addr))
         } else {
@@ -387,7 +407,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the parity flag is set.
-    fn cpe(&self, addr: u16) -> Option<u16> {
+    fn cpe(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.parity {
             Some(self.call(addr))
         } else {
@@ -396,7 +416,7 @@ impl Cpu {
     }
 
     // Conditionally call a subroutine if the parity flag is not set.
-    fn cpo(&self, addr: u16) -> Option<u16> {
+    fn cpo(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.parity {
             Some(self.call(addr))
         } else {
@@ -406,14 +426,19 @@ impl Cpu {
 
     // Call a subroutine. First, push a return address onto the stack and then
     // return the new address the pc will be set to.
-    fn call(&self, addr: u16) -> u16 {
+    fn call(&mut self, addr: u16) -> u16 {
         let pc = self.pc;
-        self.push(pc);
+        //note: Moved some of the push() code here to help keep that function cleaner
+        //can be changed later if there are issues with it.
+        //self.push(pc);
+        self.memory[self.sp as usize -1] = pc as u8;
+        self.memory[self.sp as usize -2] = (pc >> 8) as u8;
+        self.sp = self.sp.wrapping_sub(2);
         addr
     }
 
     // Conditionally call a return if the carry flag is set.
-    fn rc(&self) -> Option<u16> {
+    fn rc(&mut self) -> Option<u16> {
         if self.condition_codes.carry {
             Some(self.ret())
         } else {
@@ -422,7 +447,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the carry flag is not set.
-    fn rnc(&self) -> Option<u16> {
+    fn rnc(&mut self) -> Option<u16> {
         if !self.condition_codes.carry {
             Some(self.ret())
         } else {
@@ -431,7 +456,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the zero flag is set.
-    fn rz(&self) -> Option<u16> {
+    fn rz(&mut self) -> Option<u16> {
         if self.condition_codes.zero {
             Some(self.ret())
         } else {
@@ -440,7 +465,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the zero flag is not set.
-    fn rnz(&self) -> Option<u16> {
+    fn rnz(&mut self) -> Option<u16> {
         if !self.condition_codes.zero {
             Some(self.ret())
         } else {
@@ -449,7 +474,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the sign flag is not set.
-    fn rp(&self) -> Option<u16> {
+    fn rp(&mut self) -> Option<u16> {
         if !self.condition_codes.sign {
             Some(self.ret())
         } else {
@@ -458,7 +483,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the sign flag is set.
-    fn rm(&self) -> Option<u16> {
+    fn rm(&mut self) -> Option<u16> {
         if self.condition_codes.sign {
             Some(self.ret())
         } else {
@@ -467,7 +492,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the parity flag is set.
-    fn rpe(&self) -> Option<u16> {
+    fn rpe(&mut self) -> Option<u16> {
         if self.condition_codes.parity {
             Some(self.ret())
         } else {
@@ -476,7 +501,7 @@ impl Cpu {
     }
 
     // Conditionally call a return if the parity flag is not set.
-    fn rpo(&self) -> Option<u16> {
+    fn rpo(&mut self) -> Option<u16> {
         if !self.condition_codes.parity {
             Some(self.ret())
         } else {
@@ -486,22 +511,23 @@ impl Cpu {
 
     // Unconditionally return from a subroutine, which pops an adress off the
     // stack.
-    fn ret(&self) -> u16 {
-        self.pop()
+    fn ret(&mut self) -> u16 {
+        //note: Moved some of the push() code here to help keep that function cleaner
+        //can be changed later if there are issues with it.
+        //self.pop()
+        let res = (self.memory[self.sp as usize] as u16) << 8 | self.memory[self.sp as usize + 1] as u16;
+        self.sp = self.sp.wrapping_add(2);
+        res
     }
 
     // Restart instruction. Pushes the pc onto the stack and returns a return
     // address.
-    fn rst(&self, addr: u8) -> u16 {
+    fn rst(&mut self, addr: u8) -> u16 {
         self.call(addr as u16)
     }
 
     // Push Data Onto Stack
-    // TODO: Also need special case for PUSH PSW?
-    fn push(&self, reg: Operand) {
-        //self.memory[self.sp as usize -1] = addr as u8;
-        //self.memory[self.sp as usize -2] = (addr >> 8) as u8; 
-        //self.sp.wrapping_sub(2);
+    fn push(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
                 let res = self.registers.get_bc();
@@ -522,47 +548,46 @@ impl Cpu {
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::PSW => {
-                //let res = self.registers.get_bc();
                 self.memory[self.sp as usize -1] = self.registers.a;
-                //self.memory[self.sp as usize -2] = (res >> 8) as u8;
+                self.memory[self.sp as usize -2] = self.condition_codes.flags_to_psw();
                 self.sp = self.sp.wrapping_sub(2);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+                
             }
         };
     }
 
     // Pop Data Off Stack
-    // TODO: Also need special case for POP PSW? Needs to return a value.
-    fn pop(&self, reg: Operand) -> u16 {
-        //let res = self.memory[self.sp as usize] as u16 | (self.memory[self.sp as usize + 1] << 8) as u16;
-        //self.memory[self.sp as usize];
-        //self.memory[self.sp as usize + 1];
-        //self.sp.wrapping_add(2);
-        //res
+    fn pop(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
-                //self.registers.set_bc()
                 self.registers.b = self.memory[self.sp as usize];
                 self.registers.c = self.memory[self.sp as usize + 1];
                 self.sp = self.sp.wrapping_add(2);
-                self.registers.get_bc()
             }
             Operand::D => {
                 self.registers.d = self.memory[self.sp as usize];
                 self.registers.e = self.memory[self.sp as usize + 1];
                 self.sp = self.sp.wrapping_add(2);
-                self.registers.get_de()
             }
             Operand::H => {
                 self.registers.h = self.memory[self.sp as usize];
                 self.registers.l = self.memory[self.sp as usize + 1];
                 self.sp = self.sp.wrapping_add(2);
-                self.registers.get_hl()
             }
             Operand::PSW => {
                 self.registers.a = self.memory[self.sp as usize];
                 let res = self.memory[self.sp as usize + 1];
-                //self.registers.c = self.memory[self.sp as usize + 1];
+                self.condition_codes.psw_to_flags(res);
                 self.sp = self.sp.wrapping_add(2);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+                
             }
         };
     }
@@ -571,21 +596,43 @@ impl Cpu {
     // The 16-bit number in the specified register pair is added to the
     // 16-bit number held in the H and L registers using two's complement arithmetic.
     // The result replaces the contents of the H and L registers
-    // TODO: check flag?
-    fn dad(&self, val: u16) {
-        //let res: u16 = val + 
-        let tmp = self.registers.get_hl(); 
-        let res = tmp.wrapping_add(val);  
-        self.condition_codes.set_carry(true); 
-        //self.registers.h = (res >> 8) as u8;
-        //self.registers.l =  res as u8;    
-        self.registers.set_hl(res); 
+    fn dad(&mut self, reg: Operand) {
+        //let tmp = self.registers.get_hl(); 
+        //let res = tmp.wrapping_add(val);  
+        //self.condition_codes.set_carry((tmp + val) > 0xFFFF);   
+        //self.registers.set_hl(res); 
+        match reg {
+            Operand::B => {
+                let res = self.registers.get_bc();
+                self.condition_codes.set_carry((res + self.registers.get_hl()) > 0xFFFF);
+                self.registers.set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            Operand::D => {
+                let res = self.registers.get_de();
+                self.condition_codes.set_carry((res + self.registers.get_hl()) > 0xFFFF);
+                self.registers.set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            Operand::H => {
+                let res = self.registers.get_hl();
+                self.condition_codes.set_carry((res + self.registers.get_hl()) > 0xFFFF);
+                self.registers.set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            Operand::SP => {
+                let res = self.sp;
+                self.condition_codes.set_carry((res + self.registers.get_hl()) > 0xFFFF);
+                self.registers.set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+                
+            }
+        };
     }
 
     // Decrement Register Pair
     // The 16-bit number held in the specified register pair is decremented by one
-    //TODO: need to be mut?
-    fn dcx(&self, reg: Operand) {
+    fn dcx(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
                 self.registers.set_bc(self.registers.get_bc().wrapping_sub(1));           
@@ -599,13 +646,17 @@ impl Cpu {
             Operand::SP => {
                 self.sp = self.sp.wrapping_sub(1);
             }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+                
+            }
         };
     }
 
     // Increment Register Pair
     // The 16-bit number held in the specified register pair in incremented by one
-    // TODO: need to be mut?
-    fn inx(&self, reg: Operand) {
+    fn inx(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
                 self.registers.set_bc(self.registers.get_bc().wrapping_add(1));           
@@ -618,6 +669,11 @@ impl Cpu {
             }
             Operand::SP => {
                 self.sp = self.sp.wrapping_add(1);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+                
             }
         };
     }
@@ -647,13 +703,13 @@ impl Cpu {
 
     // Enable Interrupts
     // Sets the interrupt flag
-    fn ei(&self) {
+    fn ei(&mut self) {
         self.interrupts_enabled = true;
     }
 
     // Disable Interrupts
     // Clears the interrupt flag
-    fn di(&self) {
+    fn di(&mut self) {
         self.interrupts_enabled = false;
     }
 
@@ -1197,6 +1253,18 @@ impl Cpu {
         self.registers.set_hl(self.registers.get_de());
         self.registers.set_de(temp);
     }
+
+    //TODO: tests and comments still need to be written for these two
+    fn sphl(&mut self) {
+        self.sp = self.registers.get_hl();
+    }
+
+    fn xthl(&mut self) {
+        let temp = self.registers.get_hl();
+        self.registers.set_hl(self.sp);
+        self.sp = temp;
+    }
+
 }
 
 #[cfg(test)]
