@@ -31,10 +31,10 @@ fn main() -> Result<(), std::io::Error> {
         cpu.pc = next_pc;
 
         println!("{:?}", instr);
-        println! {"pc: {}, sp: {},", cpu.pc, cpu.sp};
+        println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
         println!("cycles: {}", cycles);
-        println!("{:?}", cpu.condition_codes);
-        println!("{:?}\n", cpu.registers);
+        println!("{:#x?}", cpu.condition_codes);
+        println!("{:#x?}\n", cpu.registers);
     }
 
     Ok(())
