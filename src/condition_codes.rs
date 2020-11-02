@@ -63,11 +63,21 @@ impl ConditionCodes {
 
     pub fn flags_to_psw(&self) -> u8 {
         let mut psw: u8 = 0x2;
-        if self.sign { psw += 0x80 };
-        if self.carry { psw += 0x01 };
-        if self.zero { psw += 0x40 };
-        if self.parity { psw += 0x04 };
-        if self.aux_carry { psw += 0x10 };
+        if self.sign {
+            psw += 0x80
+        };
+        if self.carry {
+            psw += 0x1
+        };
+        if self.zero {
+            psw += 0x40
+        };
+        if self.parity {
+            psw += 0x4
+        };
+        if self.aux_carry {
+            psw += 0x10
+        };
 
         psw
     }
