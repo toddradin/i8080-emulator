@@ -250,7 +250,6 @@ impl Cpu {
             Instruction::XCHG => flag_or_register_modify!(xchg),
             Instruction::XTHL => flag_or_register_modify!(xthl),
             Instruction::SPHL => flag_or_register_modify!(sphl),
-
             Instruction::DAD(val) => flag_or_register_modify!(dad, val),
             Instruction::INX(reg) => flag_or_register_modify!(inx, reg),
             Instruction::DCX(reg) => flag_or_register_modify!(dcx, reg),
