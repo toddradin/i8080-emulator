@@ -573,7 +573,7 @@ impl Cpu {
         self.call(addr as u16)
     }
 
-    // The contents of the specified register pair are saved in two bytes of 
+    // The contents of the specified register pair are saved in two bytes of
     // memory indicated by the stack pointer SP.
     // Condition bits affected: None
     fn push(&mut self, reg: Operand) {
@@ -608,8 +608,8 @@ impl Cpu {
         };
     }
 
-    // The contents of the specified register pair are restored from two 
-    // bytes of memory indicated by the stack pointer SP. 
+    // The contents of the specified register pair are restored from two
+    // bytes of memory indicated by the stack pointer SP.
     // Condition bits affected: None
     fn pop(&mut self, reg: Operand) {
         match reg {
@@ -709,7 +709,7 @@ impl Cpu {
         };
     }
 
-    // Increment Register Pair. The 16-bit number held in the specified 
+    // Increment Register Pair. The 16-bit number held in the specified
     // register pair in incremented by one.
     // Condition bits affected: None
     fn inx(&mut self, reg: Operand) {
