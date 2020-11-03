@@ -2,6 +2,8 @@ use crate::condition_codes::ConditionCodes;
 use crate::instruction::{Instruction, Operand};
 use crate::registers::Registers;
 
+use std::process;
+
 #[allow(dead_code)]
 pub struct Cpu {
     pub registers: Registers,
@@ -204,6 +206,28 @@ impl Cpu {
             Instruction::STC => flag_or_register_modify!(stc),
             Instruction::CMC => flag_or_register_modify!(cmc),
             Instruction::DAA => flag_or_register_modify!(daa),
+            Instruction::PUSH(op) => flag_or_register_modify!(push, op),
+            Instruction::POP(op) => flag_or_register_modify!(pop, op),
+            Instruction::EI => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::DI => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::HLT => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::IN(input) => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
+            Instruction::OUT(output) => (
+                self.pc.wrapping_add(instruction.size()),
+                instruction.cycles(),
+            ),
             Instruction::ADD(op) => alu_non_immediate!(add, op),
             Instruction::ADC(op) => alu_non_immediate!(adc, op),
             Instruction::SUB(op) => alu_non_immediate!(sub, op),
@@ -224,6 +248,11 @@ impl Cpu {
             Instruction::SHLD(addr) => flag_or_register_modify!(shld, addr),
             Instruction::LHLD(addr) => flag_or_register_modify!(lhld, addr),
             Instruction::XCHG => flag_or_register_modify!(xchg),
+            Instruction::XTHL => flag_or_register_modify!(xthl),
+            Instruction::SPHL => flag_or_register_modify!(sphl),
+            Instruction::DAD(val) => flag_or_register_modify!(dad, val),
+            Instruction::INX(reg) => flag_or_register_modify!(inx, reg),
+            Instruction::DCX(reg) => flag_or_register_modify!(dcx, reg),
             _ => unimplemented!(
                 "execute instruction {:#x?} has not yet been implemented",
                 instruction
@@ -234,12 +263,15 @@ impl Cpu {
 }
 
 impl Cpu {
-    // Unconditionally jump to the provided address.
+    // Unconditionally jump to the provided address. See jump(&self, addr).
+    // Condition bits affected: None
     fn jmp(&self, addr: u16) -> u16 {
         self.jump(addr)
     }
 
-    // Conditionally jump to the provided address if the carry flag is set.
+    // Conditionally jump to the provided address if the carry flag is set. See
+    // jump(&self, addr).
+    // Condition bits affected: None
     fn jc(&self, addr: u16) -> Option<u16> {
         if self.condition_codes.carry {
             Some(self.jump(addr))
@@ -249,6 +281,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the carry flag is not set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jnc(&self, addr: u16) -> Option<u16> {
         if !self.condition_codes.carry {
             Some(self.jump(addr))
@@ -258,6 +292,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the zero flag is set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jz(&self, addr: u16) -> Option<u16> {
         if self.condition_codes.zero {
             Some(self.jump(addr))
@@ -267,6 +303,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the zero flag is not set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jnz(&self, addr: u16) -> Option<u16> {
         if !self.condition_codes.zero {
             Some(self.jump(addr))
@@ -276,6 +314,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the sign flag is not set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jp(&self, addr: u16) -> Option<u16> {
         if !self.condition_codes.sign {
             Some(self.jump(addr))
@@ -285,6 +325,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the sign flag is set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jm(&self, addr: u16) -> Option<u16> {
         if self.condition_codes.sign {
             Some(self.jump(addr))
@@ -294,6 +336,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the parity flag is set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jpe(&self, addr: u16) -> Option<u16> {
         if self.condition_codes.parity {
             Some(self.jump(addr))
@@ -303,6 +347,8 @@ impl Cpu {
     }
 
     // Conditionally jump to the provided address if the parity flag is not set.
+    // See jump(&self, addr).
+    // Condition bits affected: None
     fn jpo(&self, addr: u16) -> Option<u16> {
         if !self.condition_codes.parity {
             Some(self.jump(addr))
@@ -312,18 +358,22 @@ impl Cpu {
     }
 
     // All of the different jump commands will call this. Return the address as
-    // the pc will be set to the returned value.
+    // the pc will be set to the returned value. See jump(&self, addr).
+    // Condition bits affected: None
     fn jump(&self, addr: u16) -> u16 {
         addr
     }
 
     // Return the H & L register as they will be moved to the pc.
+    // Condition bits affected: None
     fn pchl(&self) -> u16 {
         self.registers.get_hl()
     }
 
-    // Conditionally call a subroutine if the carry flag is set.
-    fn cc(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the carry flag is set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cc(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.carry {
             Some(self.call(addr))
         } else {
@@ -331,8 +381,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the carry flag is not set.
-    fn cnc(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the carry flag is not set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cnc(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.carry {
             Some(self.call(addr))
         } else {
@@ -340,8 +392,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the zero flag is set.
-    fn cz(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the zero flag is set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cz(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.zero {
             Some(self.call(addr))
         } else {
@@ -349,8 +403,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the zero flag is not set.
-    fn cnz(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the zero flag is not set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cnz(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.zero {
             Some(self.call(addr))
         } else {
@@ -358,8 +414,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the sign flag is not set.
-    fn cp(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the sign flag is not set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cp(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.sign {
             Some(self.call(addr))
         } else {
@@ -367,8 +425,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the sign flag is set.
-    fn cm(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the sign flag is set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cm(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.sign {
             Some(self.call(addr))
         } else {
@@ -376,8 +436,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the parity flag is set.
-    fn cpe(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the parity flag is set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cpe(&mut self, addr: u16) -> Option<u16> {
         if self.condition_codes.parity {
             Some(self.call(addr))
         } else {
@@ -385,8 +447,10 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a subroutine if the parity flag is not set.
-    fn cpo(&self, addr: u16) -> Option<u16> {
+    // Conditionally call a subroutine if the parity flag is not set. See
+    // call(&mut, addr).
+    // Condition bits affected: None
+    fn cpo(&mut self, addr: u16) -> Option<u16> {
         if !self.condition_codes.parity {
             Some(self.call(addr))
         } else {
@@ -396,14 +460,21 @@ impl Cpu {
 
     // Call a subroutine. First, push a return address onto the stack and then
     // return the new address the pc will be set to.
-    fn call(&self, addr: u16) -> u16 {
+    // Condition bits affected: None
+    fn call(&mut self, addr: u16) -> u16 {
         let pc = self.pc;
-        self.push(pc);
+        //note: Moved some of the push() code here to help keep that function cleaner
+        //can be changed later if there are issues with it.
+        //self.push(pc);
+        self.memory[self.sp as usize - 1] = (pc >> 8) as u8;
+        self.memory[self.sp as usize - 2] = pc as u8;
+        self.sp = self.sp.wrapping_sub(2);
         addr
     }
 
-    // Conditionally call a return if the carry flag is set.
-    fn rc(&self) -> Option<u16> {
+    // Conditionally call a return if the carry flag is set. See ret(&mut).
+    // Condition bits affected: None
+    fn rc(&mut self) -> Option<u16> {
         if self.condition_codes.carry {
             Some(self.ret())
         } else {
@@ -411,8 +482,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the carry flag is not set.
-    fn rnc(&self) -> Option<u16> {
+    // Conditionally call a return if the carry flag is not set. See ret(&mut).
+    // Condition bits affected: None
+    fn rnc(&mut self) -> Option<u16> {
         if !self.condition_codes.carry {
             Some(self.ret())
         } else {
@@ -420,8 +492,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the zero flag is set.
-    fn rz(&self) -> Option<u16> {
+    // Conditionally call a return if the zero flag is set. See ret(&mut).
+    // Condition bits affected: None
+    fn rz(&mut self) -> Option<u16> {
         if self.condition_codes.zero {
             Some(self.ret())
         } else {
@@ -429,8 +502,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the zero flag is not set.
-    fn rnz(&self) -> Option<u16> {
+    // Conditionally call a return if the zero flag is not set. See ret(&mut).
+    // Condition bits affected: None
+    fn rnz(&mut self) -> Option<u16> {
         if !self.condition_codes.zero {
             Some(self.ret())
         } else {
@@ -438,8 +512,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the sign flag is not set.
-    fn rp(&self) -> Option<u16> {
+    // Conditionally call a return if the sign flag is not set. See ret(&mut).
+    // Condition bits affected: None
+    fn rp(&mut self) -> Option<u16> {
         if !self.condition_codes.sign {
             Some(self.ret())
         } else {
@@ -447,8 +522,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the sign flag is set.
-    fn rm(&self) -> Option<u16> {
+    // Conditionally call a return if the sign flag is set. See ret(&mut).
+    // Condition bits affected: None
+    fn rm(&mut self) -> Option<u16> {
         if self.condition_codes.sign {
             Some(self.ret())
         } else {
@@ -456,8 +532,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the parity flag is set.
-    fn rpe(&self) -> Option<u16> {
+    // Conditionally call a return if the parity flag is set. See ret(&mut).
+    // Condition bits affected: None
+    fn rpe(&mut self) -> Option<u16> {
         if self.condition_codes.parity {
             Some(self.ret())
         } else {
@@ -465,8 +542,9 @@ impl Cpu {
         }
     }
 
-    // Conditionally call a return if the parity flag is not set.
-    fn rpo(&self) -> Option<u16> {
+    // Conditionally call a return if the parity flag is not set. See ret(&mut).
+    // Condition bits affected: None
+    fn rpo(&mut self) -> Option<u16> {
         if !self.condition_codes.parity {
             Some(self.ret())
         } else {
@@ -476,25 +554,250 @@ impl Cpu {
 
     // Unconditionally return from a subroutine, which pops an adress off the
     // stack.
-    fn ret(&self) -> u16 {
-        self.pop()
+    // Condition bits affected: None
+    fn ret(&mut self) -> u16 {
+        //note: Moved some of the push() code here to help keep that function cleaner
+        //can be changed later if there are issues with it.
+        //self.pop()
+        let res =
+            (self.memory[self.sp as usize] as u16) << 8 | self.memory[self.sp as usize + 1] as u16;
+        self.sp = self.sp.wrapping_add(2);
+        res
     }
 
     // Restart instruction. Pushes the pc onto the stack and returns a return
     // address.
-    fn rst(&self, addr: u8) -> u16 {
+    // Condition bits affected: None
+    fn rst(&mut self, addr: u8) -> u16 {
         self.call(addr as u16)
     }
 
-    fn push(&self, addr: u16) -> u16 {
-        // TODO
-        0
+    // The contents of the specified register pair are saved in two bytes of
+    // memory indicated by the stack pointer SP.
+    // Condition bits affected: None
+    fn push(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => {
+                let res = self.registers.get_bc();
+                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
+                self.memory[self.sp as usize - 2] = res as u8;
+                self.sp = self.sp.wrapping_sub(2);
+            }
+            Operand::D => {
+                let res = self.registers.get_de();
+                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
+                self.memory[self.sp as usize - 2] = res as u8;
+                self.sp = self.sp.wrapping_sub(2);
+            }
+            Operand::H => {
+                let res = self.registers.get_hl();
+                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
+                self.memory[self.sp as usize - 2] = res as u8;
+                self.sp = self.sp.wrapping_sub(2);
+            }
+            Operand::PSW => {
+                self.memory[self.sp as usize - 1] = self.registers.a;
+                self.memory[self.sp as usize - 2] = self.condition_codes.flags_to_psw();
+                self.sp = self.sp.wrapping_sub(2);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+            }
+        };
     }
 
-    fn pop(&self) -> u16 {
-        // TODO
-        0
+    // The contents of the specified register pair are restored from two
+    // bytes of memory indicated by the stack pointer SP.
+    // Condition bits affected: None
+    fn pop(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => {
+                self.registers.c = self.memory[self.sp as usize];
+                self.registers.b = self.memory[self.sp as usize + 1];
+                self.sp = self.sp.wrapping_add(2);
+            }
+            Operand::D => {
+                self.registers.e = self.memory[self.sp as usize];
+                self.registers.d = self.memory[self.sp as usize + 1];
+                self.sp = self.sp.wrapping_add(2);
+            }
+            Operand::H => {
+                self.registers.l = self.memory[self.sp as usize];
+                self.registers.h = self.memory[self.sp as usize + 1];
+                self.sp = self.sp.wrapping_add(2);
+            }
+            Operand::PSW => {
+                // self.registers.a = self.memory[self.sp as usize];
+                self.registers.a = self.memory[self.sp as usize + 1];
+                let res = self.memory[self.sp as usize];
+                self.condition_codes.psw_to_flags(res);
+                self.sp = self.sp.wrapping_add(2);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+            }
+        };
     }
+
+    // Double Add. The 16-bit number in the specified register pair is added to the
+    // 16-bit number held in the H and L registers using two's complement arithmetic.
+    // The result replaces the contents of the H and L registers.
+    // Condition bits affected: Carry
+    fn dad(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => {
+                let res = self.registers.get_bc();
+                self.condition_codes
+                    .set_carry((res as u32 + self.registers.get_hl() as u32) > 0xFFFF);
+                self.registers
+                    .set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            Operand::D => {
+                let res = self.registers.get_de();
+                self.condition_codes
+                    .set_carry((res as u32 + self.registers.get_hl() as u32) > 0xFFFF);
+                self.registers
+                    .set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            Operand::H => {
+                let res = self.registers.get_hl();
+                self.condition_codes
+                    .set_carry((res as u32 + self.registers.get_hl() as u32) > 0xFFFF);
+                self.registers
+                    .set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            Operand::SP => {
+                let res = self.sp;
+                self.condition_codes
+                    .set_carry((res as u32 + self.registers.get_hl() as u32) > 0xFFFF);
+                self.registers
+                    .set_hl(res.wrapping_add(self.registers.get_hl()));
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+            }
+        };
+    }
+
+    // Decrement Register Pair. The 16-bit number held in the specified
+    // register pair is decremented by one.
+    // Condition bits affected: None
+    fn dcx(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => {
+                self.registers
+                    .set_bc(self.registers.get_bc().wrapping_sub(1));
+            }
+            Operand::D => {
+                self.registers
+                    .set_de(self.registers.get_de().wrapping_sub(1));
+            }
+            Operand::H => {
+                self.registers
+                    .set_hl(self.registers.get_hl().wrapping_sub(1));
+            }
+            Operand::SP => {
+                self.sp = self.sp.wrapping_sub(1);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+            }
+        };
+    }
+
+    // Increment Register Pair. The 16-bit number held in the specified
+    // register pair in incremented by one.
+    // Condition bits affected: None
+    fn inx(&mut self, reg: Operand) {
+        match reg {
+            Operand::B => {
+                self.registers
+                    .set_bc(self.registers.get_bc().wrapping_add(1));
+            }
+            Operand::D => {
+                self.registers
+                    .set_de(self.registers.get_de().wrapping_add(1));
+            }
+            Operand::H => {
+                self.registers
+                    .set_hl(self.registers.get_hl().wrapping_add(1));
+            }
+            Operand::SP => {
+                self.sp = self.sp.wrapping_add(1);
+            }
+            _ => {
+                //TODO: write error message later
+                unimplemented!();
+            }
+        };
+    }
+
+    // Halt instruction
+    // Emulator 101 says it may not be necessary to emulate and suggests exiting if encountered
+    fn hlt(&self) {
+        process::exit(1);
+    }
+
+    // IN: Input (in is a reserved keyword so 'fn input' is used instead)
+    // An eight-bit data byte is read from input device number exp and replaces
+    // the contents of the accumulator
+    fn input(&self) { //IN is a reserved keyword
+                      //TODO: for now doesn't do anything
+                      //Emulator 101 says to revisit later
+                      //http://www.emulator101.com/io-and-special-group.html
+    }
+
+    // OUT: Output (changed to 'fn output' to match 'input')
+    // The contents of the accumulator are sent to output device number exp
+    fn output(&self) { //OUT
+                       //TODO: for now doesn't do anything
+                       //Emulator 101 says to revisit later
+                       //http://www.emulator101.com/io-and-special-group.html
+    }
+
+    // Enable Interrupts
+    // Sets the interrupt flag
+    fn ei(&mut self) {
+        self.interrupts_enabled = true;
+    }
+
+    // Disable Interrupts
+    // Clears the interrupt flag
+    fn di(&mut self) {
+        self.interrupts_enabled = false;
+    }
+
+    // No Operation
+    // Execution proceeds with the next sequential instruction
+    fn nop(&self) {}
+
+    // Load SP From H and L
+    fn sphl(&mut self) {
+        self.sp = self.registers.get_hl();
+    }
+
+    // Exchange Stack
+    fn xthl(&mut self) {
+        let tmp_h = self.registers.h;
+        let tmp_l = self.registers.l;
+
+        self.registers.h = self.memory[self.sp as usize + 1];
+        self.registers.l = self.memory[self.sp as usize];
+        self.memory[self.sp as usize] = tmp_l;
+        self.memory[self.sp as usize + 1] = tmp_h;
+    }
+
+    //fn rim(&self) {
+    //  not used for Space Invaders
+    //}
+
+    //fn sim(&self) {
+    //  not used for Space Invaders
+    //}
 
     // The specified byte is logically ANDed bit by bit with the contents of
     // the accumulator. See and(&mut self, val).
@@ -1357,6 +1660,154 @@ mod tests {
     }
 
     #[test]
+    fn test_inx() {
+        let mut cpu = Cpu::new();
+        cpu.registers.d = 0x38;
+        cpu.registers.e = 0xFF;
+        cpu.execute(&Instruction::INX(Operand::D));
+        assert_eq!(cpu.registers.d, 0x39);
+        assert_eq!(cpu.registers.e, 0x00);
+        cpu.sp = 0xFFFF;
+        cpu.execute(&Instruction::INX(Operand::SP));
+        assert_eq!(cpu.sp, 0x0000);
+    }
+
+    #[test]
+    fn test_dcx() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0x98;
+        cpu.registers.l = 0x00;
+        cpu.execute(&Instruction::DCX(Operand::H));
+        assert_eq!(cpu.registers.h, 0x97);
+        assert_eq!(cpu.registers.l, 0xFF);
+    }
+
+    #[test]
+    fn test_dad() {
+        let mut cpu = Cpu::new();
+        cpu.registers.b = 0x33;
+        cpu.registers.c = 0x9F;
+        cpu.registers.h = 0xA1;
+        cpu.registers.l = 0x7B;
+        cpu.condition_codes.carry = true;
+        cpu.execute(&Instruction::DAD(Operand::B));
+        assert_eq!(cpu.registers.h, 0xD5);
+        assert_eq!(cpu.registers.l, 0x1A);
+        assert_eq!(cpu.condition_codes.carry, false);
+    }
+
+    #[test]
+    fn test_push() {
+        let mut cpu = Cpu::new();
+        cpu.registers.d = 0x8F;
+        cpu.registers.e = 0x9D;
+        cpu.sp = 0x3A2C;
+        cpu.execute(&Instruction::PUSH(Operand::D));
+        assert_eq!(cpu.memory[0x3A2B], 0x8F);
+        assert_eq!(cpu.memory[0x3A2A], 0x9D);
+        assert_eq!(cpu.sp, 0x3A2A);
+
+        //PUSH PSW
+        cpu.registers.a = 0x1F;
+        cpu.sp = 0x502A;
+        cpu.condition_codes.carry = true;
+        cpu.condition_codes.zero = true;
+        cpu.condition_codes.parity = true;
+        cpu.condition_codes.sign = false;
+        cpu.condition_codes.aux_carry = false;
+
+        cpu.execute(&Instruction::PUSH(Operand::PSW));
+        assert_eq!(cpu.memory[0x5029], 0x1F);
+        assert_eq!(cpu.memory[0x5028], 0x47);
+        assert_eq!(cpu.sp, 0x5028);
+    }
+
+    #[test]
+    fn test_pop() {
+        let mut cpu = Cpu::new();
+        cpu.memory[0x1239] = 0x3D;
+        cpu.memory[0x123A] = 0x93;
+        cpu.sp = 0x1239;
+        cpu.execute(&Instruction::POP(Operand::H));
+        assert_eq!(cpu.registers.l, 0x3D);
+        assert_eq!(cpu.registers.h, 0x93);
+        assert_eq!(cpu.sp, 0x123B);
+
+        //POP PSW
+        cpu.memory[0x2C00] = 0xC3;
+        cpu.memory[0x2C01] = 0xFF;
+        cpu.sp = 0x2C00;
+        cpu.execute(&Instruction::POP(Operand::PSW));
+        assert_eq!(cpu.registers.a, 0xFF);
+        assert_eq!(cpu.condition_codes.carry, true);
+        assert_eq!(cpu.condition_codes.zero, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.sign, true);
+        assert_eq!(cpu.condition_codes.parity, false);
+    }
+
+    #[test]
+    fn test_ei() {
+        let mut cpu = Cpu::new();
+        cpu.interrupts_enabled = false;
+        cpu.ei();
+        assert_eq!(cpu.interrupts_enabled, true);
+    }
+
+    #[test]
+    fn test_di() {
+        let mut cpu = Cpu::new();
+        cpu.interrupts_enabled = true;
+        cpu.di();
+        assert_eq!(cpu.interrupts_enabled, false);
+    }
+
+    #[test]
+    fn test_sphl() {
+        let mut cpu = Cpu::new();
+        cpu.registers.h = 0x50;
+        cpu.registers.l = 0x6C;
+        cpu.execute(&Instruction::SPHL);
+        assert_eq!(cpu.sp, 0x506C);
+    }
+
+    #[test]
+    fn test_xthl() {
+        let mut cpu = Cpu::new();
+        cpu.sp = 0x10AD;
+        cpu.registers.h = 0x0B;
+        cpu.registers.l = 0x3C;
+        cpu.memory[0x10AD] = 0xF0;
+        cpu.memory[0x10AE] = 0x0D;
+        cpu.execute(&Instruction::XTHL);
+        assert_eq!(cpu.registers.h, 0x0D);
+        assert_eq!(cpu.registers.l, 0xF0);
+        assert_eq!(cpu.memory[0x10AD], 0x3C);
+        assert_eq!(cpu.memory[0x10AE], 0x0B);
+    }
+
+    //TODO: main function not yet implemented
+    //#[test]
+    //fn test_input() { //IN opcode ('in' is a reserved keyword)
+
+    //}
+
+    //TODO: main function not yet implemented
+    //#[test]
+    //fn test_output() { //OUT opcode
+
+    //}
+
+    //#[test]
+    //fn test_rim() {
+    //not used in Space Invaders
+    //}
+
+    //#[test]
+    //fn test_sim() {
+    //not used in Space Invaders
+    //}
+
     fn test_add() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x6C;

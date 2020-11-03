@@ -60,4 +60,33 @@ impl ConditionCodes {
     pub fn reset_aux_carry(&mut self) {
         self.aux_carry = false
     }
+
+    pub fn flags_to_psw(&self) -> u8 {
+        let mut psw: u8 = 0x2;
+        if self.sign {
+            psw += 0x80
+        };
+        if self.carry {
+            psw += 0x1
+        };
+        if self.zero {
+            psw += 0x40
+        };
+        if self.parity {
+            psw += 0x4
+        };
+        if self.aux_carry {
+            psw += 0x10
+        };
+
+        psw
+    }
+
+    pub fn psw_to_flags(&mut self, psw: u8) {
+        self.sign = (0x80 & psw) == 0x80;
+        self.carry = (0x1 & psw) == 0x1;
+        self.zero = (0x40 & psw) == 0x40;
+        self.parity = (0x4 & psw) == 0x4;
+        self.aux_carry = (0x10 & psw) == 0x10;
+    }
 }
