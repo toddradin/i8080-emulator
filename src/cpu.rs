@@ -471,14 +471,22 @@ impl Cpu {
     // return the new address the pc will be set to.
     // Condition bits affected: None
     fn call(&mut self, addr: u16) -> u16 {
-        let pc = self.pc;
-        //note: Moved some of the push() code here to help keep that function cleaner
-        //can be changed later if there are issues with it.
-        //self.push(pc);
-        self.memory[self.sp as usize - 1] = (pc >> 8) as u8;
-        self.memory[self.sp as usize - 2] = pc as u8;
-        self.sp = self.sp.wrapping_sub(2);
-        addr
+        if addr == 5 && self.registers.c == 2 {
+            let letter = self.registers.get_de();
+            print!("{}", std::char::from_u32(letter as u32).unwrap());
+            panic!();
+        } else if 0 == addr {
+            process::exit(0)
+        } else {
+            let pc = self.pc + 2;
+            //note: Moved some of the push() code here to help keep that function cleaner
+            //can be changed later if there are issues with it.
+            //self.push(pc);
+            self.memory[self.sp as usize - 1] = (pc >> 8) as u8;
+            self.memory[self.sp as usize - 2] = pc as u8;
+            self.sp = self.sp.wrapping_sub(2);
+            addr
+        }
     }
 
     // Conditionally call a return if the carry flag is set. See ret(&mut).
@@ -913,7 +921,7 @@ impl Cpu {
         let val = self.registers.a.wrapping_sub(val);
 
         self.condition_codes.set_carry(self.registers.a < val);
-        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_zero(val);
         self.condition_codes.set_sign(self.registers.a);
         self.condition_codes.set_parity(self.registers.a);
         // Set aux_carry if the lower nibble of the accumulator is less than

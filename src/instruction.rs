@@ -410,7 +410,7 @@ impl Instruction {
             Instruction::JC(_) => 3,
             Instruction::IN(_) => 2,
             Instruction::CC(_) => 3,
-            Instruction::SBI(_) => 3,
+            Instruction::SBI(_) => 2,
             Instruction::RPO => 1,
             Instruction::JPO(_) => 3,
             Instruction::XTHL => 1,
