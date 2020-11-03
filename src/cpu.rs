@@ -208,18 +208,27 @@ impl Cpu {
             Instruction::DAA => flag_or_register_modify!(daa),
             Instruction::PUSH(op) => flag_or_register_modify!(push, op),
             Instruction::POP(op) => flag_or_register_modify!(pop, op),
-            Instruction::EI => (
-                self.pc.wrapping_add(instruction.size()),
-                instruction.cycles(),
-            ),
-            Instruction::DI => (
-                self.pc.wrapping_add(instruction.size()),
-                instruction.cycles(),
-            ),
-            Instruction::HLT => (
-                self.pc.wrapping_add(instruction.size()),
-                instruction.cycles(),
-            ),
+            Instruction::EI => {
+                self.ei();
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::DI => {
+                self.di();
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::HLT => {
+                self.hlt();
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
             Instruction::IN(input) => (
                 self.pc.wrapping_add(instruction.size()),
                 instruction.cycles(),
@@ -2073,7 +2082,7 @@ mod tests {
     fn test_ei() {
         let mut cpu = Cpu::new();
         cpu.interrupts_enabled = false;
-        cpu.ei();
+        cpu.execute(&Instruction::EI);
         assert_eq!(cpu.interrupts_enabled, true);
     }
 
@@ -2081,7 +2090,7 @@ mod tests {
     fn test_di() {
         let mut cpu = Cpu::new();
         cpu.interrupts_enabled = true;
-        cpu.di();
+        cpu.execute(&Instruction::DI);
         assert_eq!(cpu.interrupts_enabled, false);
     }
 
@@ -2131,6 +2140,7 @@ mod tests {
     //not used in Space Invaders
     //}
 
+    #[test]
     fn test_add() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x6C;
