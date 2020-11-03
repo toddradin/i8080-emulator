@@ -466,8 +466,8 @@ impl Cpu {
         //note: Moved some of the push() code here to help keep that function cleaner
         //can be changed later if there are issues with it.
         //self.push(pc);
-        self.memory[self.sp as usize -1] = (pc >> 8) as u8;
-        self.memory[self.sp as usize -2] = pc as u8;
+        self.memory[self.sp as usize - 1] = (pc >> 8) as u8;
+        self.memory[self.sp as usize - 2] = pc as u8;
         self.sp = self.sp.wrapping_sub(2);
         addr
     }
@@ -579,20 +579,20 @@ impl Cpu {
         match reg {
             Operand::B => {
                 let res = self.registers.get_bc();
-                self.memory[self.sp as usize -1] = (res >> 8) as u8;
-                self.memory[self.sp as usize -2] = res as u8;
+                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
+                self.memory[self.sp as usize - 2] = res as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::D => {
                 let res = self.registers.get_de();
-                self.memory[self.sp as usize -1] = (res >> 8) as u8;
-                self.memory[self.sp as usize -2] = res as u8;
+                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
+                self.memory[self.sp as usize - 2] = res as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::H => {
                 let res = self.registers.get_hl();
-                self.memory[self.sp as usize -1] = (res >> 8) as u8;
-                self.memory[self.sp as usize -2] = res as u8;
+                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
+                self.memory[self.sp as usize - 2] = res as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::PSW => {
@@ -1326,7 +1326,6 @@ impl Cpu {
         self.registers.set_hl(self.registers.get_de());
         self.registers.set_de(temp);
     }
-
 }
 
 #[cfg(test)]
@@ -1716,7 +1715,7 @@ mod tests {
         cpu.condition_codes.parity = true;
         cpu.condition_codes.sign = false;
         cpu.condition_codes.aux_carry = false;
-     
+
         cpu.execute(&Instruction::PUSH(Operand::PSW));
         assert_eq!(cpu.memory[0x5029], 0x1F);
         assert_eq!(cpu.memory[0x5028], 0x47);
@@ -1790,7 +1789,7 @@ mod tests {
     //TODO: main function not yet implemented
     //#[test]
     //fn test_input() { //IN opcode ('in' is a reserved keyword)
-    
+
     //}
 
     //TODO: main function not yet implemented
