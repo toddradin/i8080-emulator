@@ -25,16 +25,18 @@ fn main() -> Result<(), std::io::Error> {
         Err(error) => panic!("Problem opening the file: {:?}", error),
     }
 
+    let mut i = 0;
     while cpu.pc < cpu.memory.len() as u16 {
         let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
         let (next_pc, cycles) = cpu.execute(&instr);
         cpu.pc = next_pc;
 
-        println!("{:?}", instr);
+        println!("{:?} {:?}", i, instr);
         println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
         println!("cycles: {}", cycles);
         println!("{:#x?}", cpu.condition_codes);
         println!("{:#x?}\n", cpu.registers);
+        i += 1;
     }
 
     Ok(())
