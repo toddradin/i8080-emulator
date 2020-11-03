@@ -8,31 +8,6 @@ pub struct ConditionCodes {
 }
 
 impl ConditionCodes {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn set_all(&mut self) {
-        self.zero = true;
-        self.sign = true;
-        self.parity = true;
-        self.carry = true;
-        self.aux_carry = true;
-    }
-
-    pub fn clear_all(&mut self) {
-        self.zero = false;
-        self.sign = false;
-        self.parity = false;
-        self.carry = false;
-        self.aux_carry = false;
-    }
-
-    pub fn set_all_except_carry(&mut self) {
-        self.set_all();
-        self.carry = false;
-    }
-
     pub fn set_carry(&mut self, carry: bool) {
         self.carry = carry
     }
@@ -88,5 +63,30 @@ impl ConditionCodes {
         self.zero = (0x40 & psw) == 0x40;
         self.parity = (0x4 & psw) == 0x4;
         self.aux_carry = (0x10 & psw) == 0x10;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_flags_to_psw() {
+        let mut flags: ConditionCodes = Default::default();
+        flags.sign = true;
+        flags.carry = true;
+        let psw = flags.flags_to_psw();
+        assert_eq!(psw, 0x83);
+    }
+
+    #[test]
+    fn test_psw_to_flags() {
+        let mut flags: ConditionCodes = Default::default();
+        flags.psw_to_flags(0x93);
+        assert_eq!(flags.sign, true);
+        assert_eq!(flags.carry, true);
+        assert_eq!(flags.zero, false);
+        assert_eq!(flags.parity, false);
+        assert_eq!(flags.aux_carry, true);
     }
 }
