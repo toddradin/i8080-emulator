@@ -78,15 +78,15 @@ mod tests {
         let psw = flags.flags_to_psw();
         assert_eq!(psw, 0x83);
     }
-    
+
     #[test]
     fn test_psw_to_flags() {
         let mut flags: ConditionCodes = Default::default();
         flags.psw_to_flags(0x93);
-        assert_eq!(flags.sign, true); 
-        assert_eq!(flags.carry, true); 
-        assert_eq!(flags.zero, false); 
-        assert_eq!(flags.parity, false); 
-        assert_eq!(flags.aux_carry, true); 
+        assert_eq!(flags.sign, true);
+        assert_eq!(flags.carry, true);
+        assert_eq!(flags.zero, false);
+        assert_eq!(flags.parity, false);
+        assert_eq!(flags.aux_carry, true);
     }
 }
