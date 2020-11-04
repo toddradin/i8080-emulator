@@ -471,22 +471,14 @@ impl Cpu {
     // return the new address the pc will be set to.
     // Condition bits affected: None
     fn call(&mut self, addr: u16) -> u16 {
-        if addr == 5 && self.registers.c == 2 {
-            let letter = self.registers.get_de();
-            print!("{}", std::char::from_u32(letter as u32).unwrap());
-            panic!();
-        } else if 0 == addr {
-            process::exit(0)
-        } else {
-            let pc = self.pc + 2;
-            //note: Moved some of the push() code here to help keep that function cleaner
-            //can be changed later if there are issues with it.
-            //self.push(pc);
-            self.memory[self.sp as usize - 1] = (pc >> 8) as u8;
-            self.memory[self.sp as usize - 2] = pc as u8;
-            self.sp = self.sp.wrapping_sub(2);
-            addr
-        }
+        let val = self.pc + 3;
+        //note: Moved some of the push() code here to help keep that function cleaner
+        //can be changed later if there are issues with it.
+        //self.push(pc);
+        self.memory[self.sp as usize - 1] = ((val & 0xFF00) >> 8) as u8;
+        self.memory[self.sp as usize - 2] = (val & 0xFF) as u8;
+        self.sp = self.sp.wrapping_sub(2);
+        addr
     }
 
     // Conditionally call a return if the carry flag is set. See ret(&mut).
@@ -596,20 +588,20 @@ impl Cpu {
         match reg {
             Operand::B => {
                 let res = self.registers.get_bc();
-                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
-                self.memory[self.sp as usize - 2] = res as u8;
+                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
+                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::D => {
                 let res = self.registers.get_de();
-                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
-                self.memory[self.sp as usize - 2] = res as u8;
+                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
+                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::H => {
                 let res = self.registers.get_hl();
-                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
-                self.memory[self.sp as usize - 2] = res as u8;
+                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
+                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::PSW => {
@@ -947,7 +939,7 @@ impl Cpu {
     // transferred to the high-order bit position of the accumulator.
     // Condition bits affected: Carry
     fn rrc(&mut self) {
-        let carry = (self.registers.a & 0x80) << 7;
+        let carry = (self.registers.a & 0x1) << 7;
         self.registers.a = self.registers.a >> 1 | carry;
         self.condition_codes.carry = (self.registers.a & 0x80) > 0;
     }

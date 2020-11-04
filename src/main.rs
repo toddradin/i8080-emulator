@@ -7,6 +7,7 @@ use cpu::Cpu;
 use instruction::Instruction;
 use std::fs::File;
 use std::io::Read;
+use std::process;
 
 fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
     let mut addr = 0x00;
@@ -31,24 +32,30 @@ fn main() -> Result<(), std::io::Error> {
     cpu.pc = 0x100;
 
     cpu.memory[368] = 0x7;
+    let debug = false;
 
     let mut i = 0;
-    let mut count = 0;
-    while cpu.pc < cpu.memory.len() as u16 && count < 100 {
+    while cpu.pc < cpu.memory.len() as u16 {
         let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
         println!("{:?} {:?}", i, instr);
         let (next_pc, cycles) = cpu.execute(&instr);
         cpu.pc = next_pc;
 
-        println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
-        println!("cycles: {}", cycles);
-        println!("{:#x?}", cpu.condition_codes);
-        println!("{:#x?}\n", cpu.registers);
+        if debug {
+            println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
+            println!("cycles: {}", cycles);
+            println!("{:#x?}", cpu.condition_codes);
+            println!("{:#x?}\n", cpu.registers);
+        }
         i += 1;
-        count += 1;
 
         if cpu.pc == 0x689 {
-            panic!();
+            panic!("Encountered error at instruction {:#x?}", instr);
+        }
+
+        if cpu.pc == 0x69B {
+            println!("Successfully ran test rom");
+            process::exit(0)
         }
     }
 
