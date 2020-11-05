@@ -782,7 +782,7 @@ impl Cpu {
 
     // No Operation
     // Execution proceeds with the next sequential instruction
-    fn nop(&self) {}
+    // fn nop(&self) {}
 
     // Load SP From H and L
     fn sphl(&mut self) {
