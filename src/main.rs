@@ -7,7 +7,6 @@ use cpu::Cpu;
 use instruction::Instruction;
 use std::fs::File;
 use std::io::Read;
-use std::process;
 
 extern crate sdl2;
 use sdl2::event::Event;
@@ -77,6 +76,23 @@ fn main() -> Result<(), std::io::Error> {
         cpu.pc = next_pc; 
         canvas.present();
         thread::sleep(Duration::from_millis(16));
+        Ok(_) => (),
+        Err(error) => panic!("Problem opening the file: {:?}", error),
+    }
+
+    let debug = false;
+    while cpu.pc < cpu.memory.len() as u16 {
+        let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
+        let (next_pc, cycles) = cpu.execute(&instr);
+        cpu.pc = next_pc;
+
+        if debug {
+            println!("{:?}", instr);
+            println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
+            println!("cycles: {}", cycles);
+            println!("{:#x?}", cpu.condition_codes);
+            println!("{:#x?}\n", cpu.registers);
+        }
     }
     
     Ok(())
