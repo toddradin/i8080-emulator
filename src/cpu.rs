@@ -11,7 +11,7 @@ pub struct Cpu {
     pub pc: u16,
     pub memory: [u8; 0xFFFF],
     pub condition_codes: ConditionCodes,
-    interrupts_enabled: bool,
+    pub interrupts_enabled: bool,
 }
 
 impl Cpu {

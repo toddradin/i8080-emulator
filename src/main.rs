@@ -1,5 +1,6 @@
 mod condition_codes;
 mod cpu;
+mod display;
 mod instruction;
 mod registers;
 
@@ -9,16 +10,12 @@ use std::fs::File;
 use std::io::Read;
 
 extern crate sdl2;
+use display::Display;
 use sdl2::event::Event;
-use sdl2::pixels::Color;
+use sdl2::keyboard::Keycode;
+
 use std::thread;
 use std::time::Duration;
-
-
-const WIDTH: u32 = 224;
-const HEIGHT: u32 = 256;
-const SCALE_UP: u32 = 4;
-
 
 fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
     let mut addr = 0x00;
@@ -33,59 +30,30 @@ fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
 fn main() -> Result<(), std::io::Error> {
     let mut cpu = Cpu::new();
     match load_roms(&mut cpu.memory) {
-       Ok(_) => (),
-       Err(error) => panic!("Problem opening the file: {:?}", error),
-    }
-
-    let offset = 0x100;
-    let buffer = include_bytes!("../roms/cpudiag.bin");
-    cpu.memory[offset as usize..(buffer.len() + offset as usize)].copy_from_slice(buffer);
-    cpu.pc = 0x100;
-
-    cpu.memory[368] = 0x7;
-
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem.window("i8080", WIDTH * SCALE_UP, HEIGHT * SCALE_UP)
-        .position_centered()
-        .build()
-        .unwrap();
-    let mut canvas = window.into_canvas().build().unwrap();
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    canvas.clear();
-    canvas.present();
-
-    let mut event_pump = sdl_context.event_pump().unwrap();
-
-    'running: loop {
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit => {
-                    // TODO: figure out how to exit program
-                    break 'running
-                },
-                _ => {
-                    // this where keyboard input would go
-                }
-            }
-        }
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
-        let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
-        let (next_pc, cycles) = cpu.execute(&instr);
-        cpu.pc = next_pc; 
-        canvas.present();
-        thread::sleep(Duration::from_millis(16));
         Ok(_) => (),
         Err(error) => panic!("Problem opening the file: {:?}", error),
     }
 
+    let sdl_context = sdl2::init().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut display = Display::new(sdl_context);
+
     let debug = false;
-    while cpu.pc < cpu.memory.len() as u16 {
+    'running: loop {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                // this where keyboard input would go
+                _ => {}
+            }
+        }
         let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
         let (next_pc, cycles) = cpu.execute(&instr);
         cpu.pc = next_pc;
-
         if debug {
             println!("{:?}", instr);
             println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
@@ -93,7 +61,13 @@ fn main() -> Result<(), std::io::Error> {
             println!("{:#x?}", cpu.condition_codes);
             println!("{:#x?}\n", cpu.registers);
         }
+
+        // TODO: work on interuppts and timing
+        if !cpu.interrupts_enabled {
+            display.draw_display(&mut cpu);
+        }
+        thread::sleep(Duration::from_millis(16));
     }
-    
+
     Ok(())
 }
