@@ -38,6 +38,14 @@ fn main() -> Result<(), std::io::Error> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut display = Display::new(sdl_context);
 
+    // TEST DISPLAY WITH JUNK MEMORY -- to be removed
+    let mut diag = 128;
+    for i in 0..9 {
+        cpu.memory[0x2400 + 28 * i] = diag;
+        println!("{:#x?}: {:b}", 0x2400 + 28 * i, cpu.memory[0x2400 + 28 * i]);
+        diag >>= 1;
+    }
+
     let debug = false;
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -63,6 +71,7 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         // TODO: work on interuppts and timing
+
         if !cpu.interrupts_enabled {
             display.draw_display(&mut cpu);
         }

@@ -27,6 +27,7 @@ impl Display {
     }
 
     pub fn draw_display(&mut self, cpu: &mut Cpu) {
+        self.canvas.clear();
         for video_ram_byte in 0x2400..0x4000 {
             let offset = video_ram_byte - 0x2400;
             let x = (offset % 28) * 8;
@@ -35,7 +36,9 @@ impl Display {
                 let cv = self.create_color_vect(cpu.memory[video_ram_byte]);
                 for bit in 0..8 {
                     if cv[bit] {
+                        self.canvas.set_draw_color(Color::WHITE);
                         self.draw_pixel((x + bit) as u32, y as u32);
+                        self.canvas.set_draw_color(Color::BLACK);
                     }
                 }
             }
