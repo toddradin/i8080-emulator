@@ -1,5 +1,5 @@
 [package]
-name = "i8080-emulator"
+name = "space-invaders"
 version = "0.1.0"
 authors = ["toddradin <todd.radin@gmail.com>"]
 edition = "2018"
@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 sdl2 = "0.34.3"
+bitflags = "1.2"
+i8080 =  { path = "../i8080" }
+

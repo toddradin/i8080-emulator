@@ -1,16 +1,20 @@
-mod condition_codes;
-mod cpu;
-mod display;
-mod instruction;
-mod registers;
+#[macro_use]
+extern crate bitflags;
+extern crate i8080;
 
-use cpu::Cpu;
-use instruction::Instruction;
+mod display;
+mod io;
+
+use crate::display::Display;
+use crate::io::{Key, SpaceInvadersIO};
+
+use i8080::cpu::Cpu;
+use i8080::instruction::Instruction;
+
 use std::fs::File;
 use std::io::Read;
 
 extern crate sdl2;
-use display::Display;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
@@ -27,8 +31,26 @@ fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
     Ok(())
 }
 
+fn keycode_to_key(keycode: Keycode) -> Option<Key> {
+    let key = match keycode {
+        Keycode::Num0 => Key::CREDIT,
+        Keycode::Num2 => Key::START2P,
+        Keycode::Num1 => Key::START1P,
+        Keycode::W => Key::SHOOT1P,
+        Keycode::A => Key::LEFT1P,
+        Keycode::D => Key::RIGHT1P,
+        Keycode::I => Key::SHOOT2P,
+        Keycode::J => Key::LEFT2P,
+        Keycode::L => Key::RIGHT2P,
+        _ => return None,
+    };
+
+    Some(key)
+}
+
 fn main() -> Result<(), std::io::Error> {
-    let mut cpu = Cpu::new();
+    let cpu = &mut Cpu::new();
+    let machine = &mut SpaceInvadersIO::new();
     match load_roms(&mut cpu.memory) {
         Ok(_) => (),
         Err(error) => panic!("Problem opening the file: {:?}", error),
@@ -55,12 +77,28 @@ fn main() -> Result<(), std::io::Error> {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
-                // this where keyboard input would go
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    if let Some(key) = keycode_to_key(keycode) {
+                        machine.press(key);
+                    }
+                }
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    if let Some(key) = keycode_to_key(keycode) {
+                        machine.release(key);
+                    }
+                }
                 _ => {}
             }
         }
+
         let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
-        let (next_pc, cycles) = cpu.execute(&instr);
+        let (next_pc, cycles) = cpu.execute(&instr, machine);
         cpu.pc = next_pc;
         if debug {
             println!("{:?}", instr);
@@ -73,7 +111,7 @@ fn main() -> Result<(), std::io::Error> {
         // TODO: work on interuppts and timing
 
         if !cpu.interrupts_enabled {
-            display.draw_display(&mut cpu);
+            display.draw_display(cpu);
         }
         thread::sleep(Duration::from_millis(16));
     }

@@ -13,11 +13,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
-name = "i8080-emulator"
+name = "i8080"
 version = "0.1.0"
-dependencies = [
- "sdl2",
-]
 
 [[package]]
 name = "lazy_static"
@@ -52,6 +49,15 @@ dependencies = [
  "cfg-if",
  "libc",
  "version-compare",
+]
+
+[[package]]
+name = "space-invaders"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "i8080",
+ "sdl2",
 ]
 
 [[package]]
