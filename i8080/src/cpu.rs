@@ -6,6 +6,7 @@ use crate::registers::Registers;
 use std::process;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct Cpu {
     pub registers: Registers,
     pub sp: u16,
@@ -773,7 +774,6 @@ impl Cpu {
     // OUT: Output (changed to 'fn output' to match 'input')
     // The contents of the accumulator are sent to output device number exp
     fn output<M: MachineIO>(&mut self, machine: &mut M, port: u8) {
-        println!("output() {:?}", port);
         machine.machine_out(port, self.registers.a);
     }
 
