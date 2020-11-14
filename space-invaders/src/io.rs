@@ -44,7 +44,7 @@ impl MachineIO for SpaceInvadersIO {
                 let val = ((self.shift1 as u16) << 8) | self.shift0 as u16;
                 ((val >> (8 - self.shift_offset)) & 0xFF) as u8
             }
-            _ => panic!("Invalid port for IN"),
+            _ => panic!("Invalid port {:?} for IN", port),
         }
     }
 
@@ -63,7 +63,8 @@ impl MachineIO for SpaceInvadersIO {
                 // TODO sound
                 ()
             }
-            _ => panic!("Invalid port for OUT"),
+            6 => {}
+            _ => panic!("Invalid port {:?} for OUT", port),
         }
     }
 }

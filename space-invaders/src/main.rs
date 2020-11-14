@@ -9,7 +9,6 @@ use crate::display::Display;
 use crate::io::{Key, SpaceInvadersIO};
 
 use i8080::cpu::Cpu;
-use i8080::instruction::Instruction;
 
 use std::fs::File;
 use std::io::Read;
@@ -68,7 +67,13 @@ fn main() -> Result<(), std::io::Error> {
         diag >>= 1;
     }
 
-    let debug = false;
+    const HERTZ: i32 = 2_000_000;
+    const FPS: u8 = 60;
+    const CYCLES_PER_FRAME: i32 = HERTZ / FPS as i32;
+    const CYCLES_PER_HALF_FRAME: i32 = CYCLES_PER_FRAME / 2;
+
+    let mut next_interrupt = 0x8;
+
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -97,18 +102,29 @@ fn main() -> Result<(), std::io::Error> {
             }
         }
 
-        let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
-        let (next_pc, cycles) = cpu.execute(&instr, machine);
-        cpu.pc = next_pc;
-        if debug {
-            println!("{:?}", instr);
-            println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
-            println!("cycles: {}", cycles);
-            println!("{:#x?}", cpu.condition_codes);
-            println!("{:#x?}\n", cpu.registers);
-        }
+        // After every CYCLES_PER_HALF_FRAME, an interrupt should be triggered.
+        // This will be run twice so that the correct number of cycles per
+        // frame is reached.
+        for _ in 0..2 {
+            let mut cycles_to_run = CYCLES_PER_HALF_FRAME;
+            while cycles_to_run > 0 {
+                cycles_to_run -= cpu.step(machine) as i32;
+            }
 
-        // TODO: work on interuppts and timing
+            if cpu.interrupts_enabled {
+                match next_interrupt {
+                    0x8 => {
+                        cpu.interrupt(0x8);
+                        next_interrupt = 0x10;
+                    }
+                    0x10 => {
+                        cpu.interrupt(0x10);
+                        next_interrupt = 0x8;
+                    }
+                    _ => {}
+                }
+            }
+        }
 
         if !cpu.interrupts_enabled {
             display.draw_display(cpu);

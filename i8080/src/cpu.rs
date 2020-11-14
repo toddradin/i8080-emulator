@@ -28,6 +28,24 @@ impl Cpu {
         }
     }
 
+    pub fn step<M: MachineIO>(&mut self, machine: &mut M) -> u8 {
+        let debug = false;
+
+        let instr = Instruction::from(&self.memory[self.pc as usize..]);
+        let (next_pc, cycles) = self.execute(&instr, machine);
+        self.pc = next_pc;
+
+        if debug {
+            println!("{:?}", instr);
+            println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
+            println!("cycles: {}", cycles);
+            println!("{:#x?}", self.condition_codes);
+            println!("{:#x?}\n", self.registers);
+        }
+
+        cycles
+    }
+
     pub fn execute<M: MachineIO>(
         &mut self,
         instruction: &Instruction,
@@ -274,10 +292,6 @@ impl Cpu {
             Instruction::DAD(val) => flag_or_register_modify!(dad, val),
             Instruction::INX(reg) => flag_or_register_modify!(inx, reg),
             Instruction::DCX(reg) => flag_or_register_modify!(dcx, reg),
-            _ => unimplemented!(
-                "execute instruction {:#x?} has not yet been implemented",
-                instruction
-            ),
         };
         (pc, cycles)
     }
@@ -767,7 +781,6 @@ impl Cpu {
     // An eight-bit data byte is read from input device number exp and replaces
     // the contents of the accumulator
     fn input<M: MachineIO>(&mut self, machine: &mut M, port: u8) {
-        println!("input() {:?}", port);
         machine.machine_in(port);
     }
 
@@ -787,6 +800,14 @@ impl Cpu {
     // Clears the interrupt flag
     fn di(&mut self) {
         self.interrupts_enabled = false;
+    }
+
+    pub fn interrupt(&mut self, addr: u16) {
+        self.interrupts_enabled = false;
+        self.memory[self.sp as usize - 1] = ((self.pc & 0xFF00) >> 8) as u8;
+        self.memory[self.sp as usize - 2] = (self.pc & 0xFF) as u8;
+        self.sp = self.sp.wrapping_sub(2);
+        self.pc = addr;
     }
 
     // No Operation
@@ -872,7 +893,7 @@ impl Cpu {
         // The 8080 logical AND instructions set the flag to reflect the
         // logical OR of bit 3 of the values involved in the AND operation.
         let aux_carry = ((self.registers.a | val) & 0x8) == 0x8;
-        self.registers.a = self.registers.a & val;
+        self.registers.a &= val;
 
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(self.registers.a);
@@ -886,7 +907,7 @@ impl Cpu {
     // are reset.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn xor(&mut self, val: u8) {
-        self.registers.a = self.registers.a ^ val;
+        self.registers.a ^= val;
 
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(self.registers.a);
@@ -900,7 +921,7 @@ impl Cpu {
     // reset.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn or(&mut self, val: u8) {
-        self.registers.a = self.registers.a | val;
+        self.registers.a |= val;
 
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(self.registers.a);
@@ -1192,7 +1213,7 @@ impl Cpu {
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(reg_a < val);
         self.condition_codes
-            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF - (borrow as i8)) >= 0);
+            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & (0xF - (borrow as i8))) >= 0);
     }
 
     // The byte of immediate data is added to the contents of the accumulator.
