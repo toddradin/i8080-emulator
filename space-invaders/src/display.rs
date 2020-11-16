@@ -1,4 +1,5 @@
-use crate::cpu::Cpu;
+use i8080::cpu::Cpu;
+
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
@@ -26,7 +27,7 @@ impl Display {
         Display { canvas: canvas }
     }
 
-    pub fn draw_display(&mut self, cpu: &mut Cpu) {
+    pub fn draw_display(&mut self, cpu: &Cpu) {
         self.canvas.clear();
         for video_ram_byte in 0x2400..0x4000 {
             let offset = video_ram_byte - 0x2400;

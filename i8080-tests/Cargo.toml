@@ -1,5 +1,5 @@
 [package]
-name = "i8080-emulator"
+name = "i8080-tests"
 version = "0.1.0"
 authors = ["toddradin <todd.radin@gmail.com>"]
 edition = "2018"
@@ -7,4 +7,4 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sdl2 = "0.34.3"
+i8080 =  { path = "../i8080" }
