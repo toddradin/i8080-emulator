@@ -93,25 +93,12 @@ fn main() -> Result<(), std::io::Error> {
         // frame is reached.
         for _ in 0..2 {
             let mut cycles_to_run = CYCLES_PER_HALF_FRAME;
-            while cycles_to_run > 0 {
+            while cycles_to_run >= 0 {
                 cycles_to_run -= cpu.step(machine) as i32;
             }
-
-            if cpu.interrupts_enabled {
-                match next_interrupt {
-                    0x8 => {
-                        display.draw_display(cpu, true);
-                        cpu.interrupt(0x8);
-                        next_interrupt = 0x10;
-                    }
-                    0x10 => {
-                        display.draw_display(cpu, false);
-                        cpu.interrupt(0x10);
-                        next_interrupt = 0x8;
-                    }
-                    _ => {}
-                }
-            }
+            cpu.interrupt(next_interrupt);
+            next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
+            display.draw_display_whole(cpu);
         }
     }
 

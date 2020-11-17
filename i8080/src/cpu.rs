@@ -803,11 +803,13 @@ impl Cpu {
     }
 
     pub fn interrupt(&mut self, addr: u16) {
-        self.interrupts_enabled = false;
-        self.memory[self.sp as usize - 1] = ((self.pc & 0xFF00) >> 8) as u8;
-        self.memory[self.sp as usize - 2] = (self.pc & 0xFF) as u8;
-        self.sp = self.sp.wrapping_sub(2);
-        self.pc = addr;
+        if self.interrupts_enabled {
+            self.interrupts_enabled = false;
+            self.memory[self.sp.wrapping_sub(1) as usize] = ((self.pc & 0xFF00) >> 8) as u8;
+            self.memory[self.sp.wrapping_sub(2) as usize] = (self.pc & 0xFF) as u8;
+            self.sp = self.sp.wrapping_sub(2);
+            self.pc = addr;
+        }
     }
 
     // No Operation
