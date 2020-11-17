@@ -1,24 +1,18 @@
 #[macro_use]
 extern crate bitflags;
 extern crate i8080;
+extern crate sdl2;
+use crate::display::Display;
+use crate::io::{Key, SpaceInvadersIO};
 
 mod display;
 mod io;
 
-use crate::display::Display;
-use crate::io::{Key, SpaceInvadersIO};
-
 use i8080::cpu::Cpu;
-
-use std::fs::File;
-use std::io::Read;
-
-extern crate sdl2;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-
-use std::thread;
-use std::time::Duration;
+use std::fs::File;
+use std::io::Read;
 
 fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
     let mut addr = 0x00;
@@ -58,14 +52,6 @@ fn main() -> Result<(), std::io::Error> {
     let sdl_context = sdl2::init().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut display = Display::new(sdl_context);
-
-    // TEST DISPLAY WITH JUNK MEMORY -- to be removed
-    let mut diag = 128;
-    for i in 0..9 {
-        cpu.memory[0x2400 + 28 * i] = diag;
-        println!("{:#x?}: {:b}", 0x2400 + 28 * i, cpu.memory[0x2400 + 28 * i]);
-        diag >>= 1;
-    }
 
     const HERTZ: i32 = 2_000_000;
     const FPS: u8 = 60;
@@ -114,10 +100,12 @@ fn main() -> Result<(), std::io::Error> {
             if cpu.interrupts_enabled {
                 match next_interrupt {
                     0x8 => {
+                        display.draw_display(cpu, true);
                         cpu.interrupt(0x8);
                         next_interrupt = 0x10;
                     }
                     0x10 => {
+                        display.draw_display(cpu, false);
                         cpu.interrupt(0x10);
                         next_interrupt = 0x8;
                     }
@@ -125,11 +113,6 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
         }
-
-        if !cpu.interrupts_enabled {
-            display.draw_display(cpu);
-        }
-        thread::sleep(Duration::from_millis(16));
     }
 
     Ok(())
