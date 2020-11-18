@@ -75,20 +75,18 @@ fn main() -> Result<(), std::io::Error> {
             }
         }
 
-        let mut cycle = 0;
-        while cycle <= CYCLES_PER_HALF_FRAME {
-            cycle += cpu.step(machine) as i32;
+        // After every CYCLES_PER_HALF_FRAME, an interrupt should be triggered.
+        // This will be run twice so that the correct number of cycles per
+        // frame is reached.
+        for _ in 0..2 {
+            let mut cycles_to_run = CYCLES_PER_HALF_FRAME;
+            while cycles_to_run >= 0 {
+                cycles_to_run -= cpu.step(machine) as i32;
+            }
+            cpu.interrupt(next_interrupt);
+            next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
+            display.draw_display_whole(cpu);
         }
-        display.draw_display(cpu, true);
-        cpu.interrupt(next_interrupt);
-        next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
-
-        while cycle <= CYCLES_PER_FRAME {
-            cycle += cpu.step(machine) as i32;
-        }
-        display.draw_display(cpu, false);
-        cpu.interrupt(next_interrupt);
-        next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
     }
 
     Ok(())
