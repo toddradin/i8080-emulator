@@ -1,17 +1,19 @@
 use crate::condition_codes::ConditionCodes;
 use crate::instruction::{Instruction, Operand};
+use crate::machine::MachineIO;
 use crate::registers::Registers;
 
 use std::process;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct Cpu {
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
     pub memory: [u8; 0xFFFF],
     pub condition_codes: ConditionCodes,
-    interrupts_enabled: bool,
+    pub interrupts_enabled: bool,
 }
 
 impl Cpu {
@@ -26,7 +28,29 @@ impl Cpu {
         }
     }
 
-    pub fn execute(&mut self, instruction: &Instruction) -> (u16, u8) {
+    pub fn step<M: MachineIO>(&mut self, machine: &mut M) -> u8 {
+        let debug = false;
+
+        let instr = Instruction::from(&self.memory[self.pc as usize..]);
+        let (next_pc, cycles) = self.execute(&instr, machine);
+        self.pc = next_pc;
+
+        if debug {
+            println!("{:?}", instr);
+            println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
+            println!("cycles: {}", cycles);
+            println!("{:#x?}", self.condition_codes);
+            println!("{:#x?}\n", self.registers);
+        }
+
+        cycles
+    }
+
+    pub fn execute<M: MachineIO>(
+        &mut self,
+        instruction: &Instruction,
+        machine: &mut M,
+    ) -> (u16, u8) {
         // Macro for unconditional instructions. This macro will call the
         // provided function name ($func) along with an address ($addr) if
         // provided. This will return a tuple of (next_pc, cycles).
@@ -229,14 +253,20 @@ impl Cpu {
                     instruction.cycles(),
                 )
             }
-            Instruction::IN(input) => (
-                self.pc.wrapping_add(instruction.size()),
-                instruction.cycles(),
-            ),
-            Instruction::OUT(output) => (
-                self.pc.wrapping_add(instruction.size()),
-                instruction.cycles(),
-            ),
+            Instruction::IN(port) => {
+                self.input(machine, port);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
+            Instruction::OUT(port) => {
+                self.output(machine, port);
+                (
+                    self.pc.wrapping_add(instruction.size()),
+                    instruction.cycles(),
+                )
+            }
             Instruction::ADD(op) => alu_non_immediate!(add, op),
             Instruction::ADC(op) => alu_non_immediate!(adc, op),
             Instruction::SUB(op) => alu_non_immediate!(sub, op),
@@ -262,10 +292,6 @@ impl Cpu {
             Instruction::DAD(val) => flag_or_register_modify!(dad, val),
             Instruction::INX(reg) => flag_or_register_modify!(inx, reg),
             Instruction::DCX(reg) => flag_or_register_modify!(dcx, reg),
-            _ => unimplemented!(
-                "execute instruction {:#x?} has not yet been implemented",
-                instruction
-            ),
         };
         (pc, cycles)
     }
@@ -471,12 +497,12 @@ impl Cpu {
     // return the new address the pc will be set to.
     // Condition bits affected: None
     fn call(&mut self, addr: u16) -> u16 {
-        let pc = self.pc;
+        let val = self.pc + 3;
         //note: Moved some of the push() code here to help keep that function cleaner
         //can be changed later if there are issues with it.
         //self.push(pc);
-        self.memory[self.sp as usize - 1] = (pc >> 8) as u8;
-        self.memory[self.sp as usize - 2] = pc as u8;
+        self.memory[self.sp as usize - 1] = ((val & 0xFF00) >> 8) as u8;
+        self.memory[self.sp as usize - 2] = (val & 0xFF) as u8;
         self.sp = self.sp.wrapping_sub(2);
         addr
     }
@@ -588,20 +614,20 @@ impl Cpu {
         match reg {
             Operand::B => {
                 let res = self.registers.get_bc();
-                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
-                self.memory[self.sp as usize - 2] = res as u8;
+                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
+                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::D => {
                 let res = self.registers.get_de();
-                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
-                self.memory[self.sp as usize - 2] = res as u8;
+                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
+                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::H => {
                 let res = self.registers.get_hl();
-                self.memory[self.sp as usize - 1] = (res >> 8) as u8;
-                self.memory[self.sp as usize - 2] = res as u8;
+                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
+                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
                 self.sp = self.sp.wrapping_sub(2);
             }
             Operand::PSW => {
@@ -754,18 +780,14 @@ impl Cpu {
     // IN: Input (in is a reserved keyword so 'fn input' is used instead)
     // An eight-bit data byte is read from input device number exp and replaces
     // the contents of the accumulator
-    fn input(&self) { //IN is a reserved keyword
-                      //TODO: for now doesn't do anything
-                      //Emulator 101 says to revisit later
-                      //http://www.emulator101.com/io-and-special-group.html
+    fn input<M: MachineIO>(&mut self, machine: &mut M, port: u8) {
+        machine.machine_in(port);
     }
 
     // OUT: Output (changed to 'fn output' to match 'input')
     // The contents of the accumulator are sent to output device number exp
-    fn output(&self) { //OUT
-                       //TODO: for now doesn't do anything
-                       //Emulator 101 says to revisit later
-                       //http://www.emulator101.com/io-and-special-group.html
+    fn output<M: MachineIO>(&mut self, machine: &mut M, port: u8) {
+        machine.machine_out(port, self.registers.a);
     }
 
     // Enable Interrupts
@@ -780,9 +802,19 @@ impl Cpu {
         self.interrupts_enabled = false;
     }
 
+    pub fn interrupt(&mut self, addr: u16) {
+        if self.interrupts_enabled {
+            self.interrupts_enabled = false;
+            self.memory[self.sp.wrapping_sub(1) as usize] = ((self.pc & 0xFF00) >> 8) as u8;
+            self.memory[self.sp.wrapping_sub(2) as usize] = (self.pc & 0xFF) as u8;
+            self.sp = self.sp.wrapping_sub(2);
+            self.pc = addr;
+        }
+    }
+
     // No Operation
     // Execution proceeds with the next sequential instruction
-    fn nop(&self) {}
+    // fn nop(&self) {}
 
     // Load SP From H and L
     fn sphl(&mut self) {
@@ -863,7 +895,7 @@ impl Cpu {
         // The 8080 logical AND instructions set the flag to reflect the
         // logical OR of bit 3 of the values involved in the AND operation.
         let aux_carry = ((self.registers.a | val) & 0x8) == 0x8;
-        self.registers.a = self.registers.a & val;
+        self.registers.a &= val;
 
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(self.registers.a);
@@ -877,7 +909,7 @@ impl Cpu {
     // are reset.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn xor(&mut self, val: u8) {
-        self.registers.a = self.registers.a ^ val;
+        self.registers.a ^= val;
 
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(self.registers.a);
@@ -891,7 +923,7 @@ impl Cpu {
     // reset.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn or(&mut self, val: u8) {
-        self.registers.a = self.registers.a | val;
+        self.registers.a |= val;
 
         self.condition_codes.reset_carry();
         self.condition_codes.set_zero(self.registers.a);
@@ -913,7 +945,7 @@ impl Cpu {
         let val = self.registers.a.wrapping_sub(val);
 
         self.condition_codes.set_carry(self.registers.a < val);
-        self.condition_codes.set_zero(self.registers.a);
+        self.condition_codes.set_zero(val);
         self.condition_codes.set_sign(self.registers.a);
         self.condition_codes.set_parity(self.registers.a);
         // Set aux_carry if the lower nibble of the accumulator is less than
@@ -939,7 +971,7 @@ impl Cpu {
     // transferred to the high-order bit position of the accumulator.
     // Condition bits affected: Carry
     fn rrc(&mut self) {
-        let carry = (self.registers.a & 0x80) << 7;
+        let carry = (self.registers.a & 0x1) << 7;
         self.registers.a = self.registers.a >> 1 | carry;
         self.condition_codes.carry = (self.registers.a & 0x80) > 0;
     }
@@ -1183,7 +1215,7 @@ impl Cpu {
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry(reg_a < val);
         self.condition_codes
-            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF - (borrow as i8)) >= 0);
+            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & (0xF - (borrow as i8))) >= 0);
     }
 
     // The byte of immediate data is added to the contents of the accumulator.
@@ -1341,18 +1373,28 @@ impl Cpu {
 mod tests {
     use super::*;
 
+    struct MockMachine;
+
+    impl MachineIO for MockMachine {
+        fn machine_in(&mut self, _: u8) -> u8 {
+            0
+        }
+
+        fn machine_out(&mut self, _: u8, _: u8) {}
+    }
+
     #[test]
     fn test_nop() {
         let mut cpu = Cpu::new();
         let instr = Instruction::NOP;
-        let (_, cycles) = cpu.execute(&instr);
+        let (_, cycles) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(cycles, Instruction::NOP.cycles());
     }
 
     #[test]
     fn test_jmp() {
         let mut cpu = Cpu::new();
-        let (next_pc, _) = cpu.execute(&Instruction::JMP(0x10FF));
+        let (next_pc, _) = cpu.execute(&Instruction::JMP(0x10FF), &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1361,10 +1403,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JC(0x10FF);
         cpu.condition_codes.carry = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.carry = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1373,10 +1415,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JNC(0x10FF);
         cpu.condition_codes.carry = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.carry = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1385,10 +1427,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JZ(0x10FF);
         cpu.condition_codes.zero = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.zero = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1397,10 +1439,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JNZ(0x10FF);
         cpu.condition_codes.zero = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.zero = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1409,10 +1451,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JP(0x10FF);
         cpu.condition_codes.sign = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.sign = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1421,10 +1463,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JM(0x10FF);
         cpu.condition_codes.sign = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.sign = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1433,10 +1475,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JPE(0x10FF);
         cpu.condition_codes.parity = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.parity = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1445,10 +1487,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::JPO(0x10FF);
         cpu.condition_codes.parity = true;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_ne!(next_pc, 0x10FF);
         cpu.condition_codes.parity = false;
-        let (next_pc, _) = cpu.execute(&instr);
+        let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
@@ -1457,7 +1499,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.h = 0x1;
         cpu.registers.l = 0x2;
-        let (next_pc, _) = cpu.execute(&Instruction::PCHL);
+        let (next_pc, _) = cpu.execute(&Instruction::PCHL, &mut MockMachine);
         assert_eq!(next_pc, 0x102);
     }
 
@@ -1466,7 +1508,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
-        let (pc, _) = cpu.execute(&Instruction::CALL(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1477,14 +1519,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = false;
-        let (pc, _) = cpu.execute(&Instruction::CC(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CC(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = true;
-        let (pc, _) = cpu.execute(&Instruction::CC(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CC(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1495,14 +1537,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = true;
-        let (pc, _) = cpu.execute(&Instruction::CNC(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CNC(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = false;
-        let (pc, _) = cpu.execute(&Instruction::CNC(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CNC(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1513,14 +1555,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = false;
-        let (pc, _) = cpu.execute(&Instruction::CZ(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CZ(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = true;
-        let (pc, _) = cpu.execute(&Instruction::CZ(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CZ(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1531,14 +1573,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = true;
-        let (pc, _) = cpu.execute(&Instruction::CNZ(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CNZ(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = false;
-        let (pc, _) = cpu.execute(&Instruction::CNZ(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CNZ(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1549,14 +1591,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = true;
-        let (pc, _) = cpu.execute(&Instruction::CP(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CP(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = false;
-        let (pc, _) = cpu.execute(&Instruction::CP(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CP(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1567,14 +1609,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = false;
-        let (pc, _) = cpu.execute(&Instruction::CM(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CM(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = true;
-        let (pc, _) = cpu.execute(&Instruction::CM(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CM(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1585,14 +1627,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = false;
-        let (pc, _) = cpu.execute(&Instruction::CPE(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CPE(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = true;
-        let (pc, _) = cpu.execute(&Instruction::CPE(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CPE(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1603,14 +1645,14 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = true;
-        let (pc, _) = cpu.execute(&Instruction::CPO(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CPO(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x18DC);
         assert_eq!(cpu.sp, 0x2400);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = false;
-        let (pc, _) = cpu.execute(&Instruction::CPO(0x1E6));
+        let (pc, _) = cpu.execute(&Instruction::CPO(0x1E6), &mut MockMachine);
         assert_eq!(pc, 0x1E6);
         assert_eq!(cpu.sp, 0x23FE);
     }
@@ -1620,8 +1662,8 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RET);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RET, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1632,16 +1674,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RC);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RC, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RC);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RC, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1652,16 +1694,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RNC);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RNC, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RNC);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RNC, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1672,16 +1714,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RZ);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RZ, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RZ);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RZ, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1692,16 +1734,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RNZ);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RNZ, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RNZ);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RNZ, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1712,16 +1754,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RP);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RP, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RP);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RP, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1732,16 +1774,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RM);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RM, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RM);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RM, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1752,16 +1794,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RPE);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RPE, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RPE);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RPE, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1772,16 +1814,16 @@ mod tests {
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = true;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RPO);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RPO, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x23FE);
 
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = false;
-        cpu.execute(&Instruction::CALL(0x1E6));
-        cpu.execute(&Instruction::RPO);
+        cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
+        cpu.execute(&Instruction::RPO, &mut MockMachine);
         assert_eq!(cpu.pc, 0x18D9);
         assert_eq!(cpu.sp, 0x2400);
     }
@@ -1791,7 +1833,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xFC;
         cpu.registers.b = 0xF;
-        cpu.execute(&Instruction::ANA(Operand::B));
+        cpu.execute(&Instruction::ANA(Operand::B), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xC);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
@@ -1805,7 +1847,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xFC;
         cpu.registers.b = 0x1;
-        cpu.execute(&Instruction::XRA(Operand::B));
+        cpu.execute(&Instruction::XRA(Operand::B), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xFD);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, true);
@@ -1819,7 +1861,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x33;
         cpu.registers.b = 0xF;
-        cpu.execute(&Instruction::ORA(Operand::B));
+        cpu.execute(&Instruction::ORA(Operand::B), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x3F);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
@@ -1833,7 +1875,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xA;
         cpu.registers.b = 0x5;
-        cpu.execute(&Instruction::CMP(Operand::B));
+        cpu.execute(&Instruction::CMP(Operand::B), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xA);
         assert_eq!(cpu.registers.b, 0x5);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -1844,7 +1886,7 @@ mod tests {
 
         cpu.registers.a = 0x2;
         cpu.registers.b = 0x5;
-        cpu.execute(&Instruction::CMP(Operand::B));
+        cpu.execute(&Instruction::CMP(Operand::B), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x2);
         assert_eq!(cpu.registers.b, 0x5);
         assert_eq!(cpu.condition_codes.carry, true);
@@ -1858,7 +1900,7 @@ mod tests {
     fn test_ani() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x3A;
-        cpu.execute(&Instruction::ANI(0xF));
+        cpu.execute(&Instruction::ANI(0xF), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xA);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
@@ -1871,7 +1913,7 @@ mod tests {
     fn test_xri() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x3B;
-        cpu.execute(&Instruction::XRI(0x81));
+        cpu.execute(&Instruction::XRI(0x81), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xBA);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, true);
@@ -1884,7 +1926,7 @@ mod tests {
     fn test_ori() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xB5;
-        cpu.execute(&Instruction::ORI(0xF));
+        cpu.execute(&Instruction::ORI(0xF), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xBF);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, true);
@@ -1897,7 +1939,7 @@ mod tests {
     fn test_cpi() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x4A;
-        cpu.execute(&Instruction::CPI(0x40));
+        cpu.execute(&Instruction::CPI(0x40), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x4A);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
@@ -1906,7 +1948,7 @@ mod tests {
         assert_eq!(cpu.condition_codes.aux_carry, false);
 
         cpu.registers.a = 0x2;
-        cpu.execute(&Instruction::CPI(0x40));
+        cpu.execute(&Instruction::CPI(0x40), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x2);
         assert_eq!(cpu.condition_codes.carry, true);
         assert_eq!(cpu.condition_codes.sign, false);
@@ -1919,7 +1961,7 @@ mod tests {
     fn test_rlc() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xF2;
-        cpu.execute(&Instruction::RLC);
+        cpu.execute(&Instruction::RLC, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xE5);
         assert_eq!(cpu.condition_codes.carry, true);
     }
@@ -1928,7 +1970,7 @@ mod tests {
     fn test_rrc() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xF2;
-        cpu.execute(&Instruction::RRC);
+        cpu.execute(&Instruction::RRC, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x79);
         assert_eq!(cpu.condition_codes.carry, false);
     }
@@ -1937,7 +1979,7 @@ mod tests {
     fn test_ral() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xB5;
-        cpu.execute(&Instruction::RAL);
+        cpu.execute(&Instruction::RAL, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x6A);
         assert_eq!(cpu.condition_codes.carry, true);
     }
@@ -1947,7 +1989,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x6A;
         cpu.condition_codes.carry = true;
-        cpu.execute(&Instruction::RAR);
+        cpu.execute(&Instruction::RAR, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xB5);
         assert_eq!(cpu.condition_codes.carry, false);
     }
@@ -1956,14 +1998,14 @@ mod tests {
     fn test_cma() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x51;
-        cpu.execute(&Instruction::CMA);
+        cpu.execute(&Instruction::CMA, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xAE);
     }
 
     #[test]
     fn test_stc() {
         let mut cpu = Cpu::new();
-        cpu.execute(&Instruction::STC);
+        cpu.execute(&Instruction::STC, &mut MockMachine);
         assert_eq!(cpu.condition_codes.carry, true);
     }
 
@@ -1972,10 +2014,10 @@ mod tests {
         let mut cpu = Cpu::new();
         let instr = Instruction::CMC;
         cpu.condition_codes.carry = false;
-        cpu.execute(&instr);
+        cpu.execute(&instr, &mut MockMachine);
         assert_eq!(cpu.condition_codes.carry, true);
         cpu.condition_codes.carry = true;
-        cpu.execute(&instr);
+        cpu.execute(&instr, &mut MockMachine);
         assert_eq!(cpu.condition_codes.carry, false);
     }
 
@@ -1985,7 +2027,7 @@ mod tests {
         cpu.registers.a = 0x9B;
         cpu.condition_codes.carry = false;
         cpu.condition_codes.aux_carry = false;
-        cpu.execute(&Instruction::DAA);
+        cpu.execute(&Instruction::DAA, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x1);
         assert_eq!(cpu.condition_codes.carry, true);
         assert_eq!(cpu.condition_codes.aux_carry, true);
@@ -1996,11 +2038,11 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.d = 0x38;
         cpu.registers.e = 0xFF;
-        cpu.execute(&Instruction::INX(Operand::D));
+        cpu.execute(&Instruction::INX(Operand::D), &mut MockMachine);
         assert_eq!(cpu.registers.d, 0x39);
         assert_eq!(cpu.registers.e, 0x00);
         cpu.sp = 0xFFFF;
-        cpu.execute(&Instruction::INX(Operand::SP));
+        cpu.execute(&Instruction::INX(Operand::SP), &mut MockMachine);
         assert_eq!(cpu.sp, 0x0000);
     }
 
@@ -2009,7 +2051,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.h = 0x98;
         cpu.registers.l = 0x00;
-        cpu.execute(&Instruction::DCX(Operand::H));
+        cpu.execute(&Instruction::DCX(Operand::H), &mut MockMachine);
         assert_eq!(cpu.registers.h, 0x97);
         assert_eq!(cpu.registers.l, 0xFF);
     }
@@ -2022,7 +2064,7 @@ mod tests {
         cpu.registers.h = 0xA1;
         cpu.registers.l = 0x7B;
         cpu.condition_codes.carry = true;
-        cpu.execute(&Instruction::DAD(Operand::B));
+        cpu.execute(&Instruction::DAD(Operand::B), &mut MockMachine);
         assert_eq!(cpu.registers.h, 0xD5);
         assert_eq!(cpu.registers.l, 0x1A);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2034,7 +2076,7 @@ mod tests {
         cpu.registers.d = 0x8F;
         cpu.registers.e = 0x9D;
         cpu.sp = 0x3A2C;
-        cpu.execute(&Instruction::PUSH(Operand::D));
+        cpu.execute(&Instruction::PUSH(Operand::D), &mut MockMachine);
         assert_eq!(cpu.memory[0x3A2B], 0x8F);
         assert_eq!(cpu.memory[0x3A2A], 0x9D);
         assert_eq!(cpu.sp, 0x3A2A);
@@ -2048,7 +2090,7 @@ mod tests {
         cpu.condition_codes.sign = false;
         cpu.condition_codes.aux_carry = false;
 
-        cpu.execute(&Instruction::PUSH(Operand::PSW));
+        cpu.execute(&Instruction::PUSH(Operand::PSW), &mut MockMachine);
         assert_eq!(cpu.memory[0x5029], 0x1F);
         assert_eq!(cpu.memory[0x5028], 0x47);
         assert_eq!(cpu.sp, 0x5028);
@@ -2060,7 +2102,7 @@ mod tests {
         cpu.memory[0x1239] = 0x3D;
         cpu.memory[0x123A] = 0x93;
         cpu.sp = 0x1239;
-        cpu.execute(&Instruction::POP(Operand::H));
+        cpu.execute(&Instruction::POP(Operand::H), &mut MockMachine);
         assert_eq!(cpu.registers.l, 0x3D);
         assert_eq!(cpu.registers.h, 0x93);
         assert_eq!(cpu.sp, 0x123B);
@@ -2069,7 +2111,7 @@ mod tests {
         cpu.memory[0x2C00] = 0xC3;
         cpu.memory[0x2C01] = 0xFF;
         cpu.sp = 0x2C00;
-        cpu.execute(&Instruction::POP(Operand::PSW));
+        cpu.execute(&Instruction::POP(Operand::PSW), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xFF);
         assert_eq!(cpu.condition_codes.carry, true);
         assert_eq!(cpu.condition_codes.zero, true);
@@ -2082,7 +2124,7 @@ mod tests {
     fn test_ei() {
         let mut cpu = Cpu::new();
         cpu.interrupts_enabled = false;
-        cpu.execute(&Instruction::EI);
+        cpu.execute(&Instruction::EI, &mut MockMachine);
         assert_eq!(cpu.interrupts_enabled, true);
     }
 
@@ -2090,7 +2132,7 @@ mod tests {
     fn test_di() {
         let mut cpu = Cpu::new();
         cpu.interrupts_enabled = true;
-        cpu.execute(&Instruction::DI);
+        cpu.execute(&Instruction::DI, &mut MockMachine);
         assert_eq!(cpu.interrupts_enabled, false);
     }
 
@@ -2099,7 +2141,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.h = 0x50;
         cpu.registers.l = 0x6C;
-        cpu.execute(&Instruction::SPHL);
+        cpu.execute(&Instruction::SPHL, &mut MockMachine);
         assert_eq!(cpu.sp, 0x506C);
     }
 
@@ -2111,7 +2153,7 @@ mod tests {
         cpu.registers.l = 0x3C;
         cpu.memory[0x10AD] = 0xF0;
         cpu.memory[0x10AE] = 0x0D;
-        cpu.execute(&Instruction::XTHL);
+        cpu.execute(&Instruction::XTHL, &mut MockMachine);
         assert_eq!(cpu.registers.h, 0x0D);
         assert_eq!(cpu.registers.l, 0xF0);
         assert_eq!(cpu.memory[0x10AD], 0x3C);
@@ -2145,7 +2187,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x6C;
         cpu.registers.d = 0x2E;
-        cpu.execute(&Instruction::ADD(Operand::D));
+        cpu.execute(&Instruction::ADD(Operand::D), &mut MockMachine);
 
         assert_eq!(cpu.registers.a, 0x9A);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2162,7 +2204,7 @@ mod tests {
         cpu.registers.a = 0x42;
         cpu.registers.c = 0x3D;
         cpu.condition_codes.carry = false;
-        cpu.execute(&Instruction::ADC(Operand::C));
+        cpu.execute(&Instruction::ADC(Operand::C), &mut MockMachine);
 
         assert_eq!(cpu.registers.a, 0x7F);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2175,7 +2217,7 @@ mod tests {
         cpu.registers.a = 0x42;
         cpu.registers.c = 0x3D;
         cpu.condition_codes.carry = true;
-        cpu.execute(&Instruction::ADC(Operand::C));
+        cpu.execute(&Instruction::ADC(Operand::C), &mut MockMachine);
 
         assert_eq!(cpu.registers.a, 0x80);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2189,7 +2231,7 @@ mod tests {
     fn test_sub() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x3E;
-        cpu.execute(&Instruction::SUB(Operand::A));
+        cpu.execute(&Instruction::SUB(Operand::A), &mut MockMachine);
 
         assert_eq!(cpu.registers.a, 0x0);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2205,7 +2247,7 @@ mod tests {
         cpu.registers.a = 0x4;
         cpu.registers.l = 0x2;
         cpu.condition_codes.carry = true;
-        cpu.execute(&Instruction::SBB(Operand::L));
+        cpu.execute(&Instruction::SBB(Operand::L), &mut MockMachine);
 
         assert_eq!(cpu.registers.a, 0x1);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2219,7 +2261,7 @@ mod tests {
     fn test_inr() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0x99;
-        cpu.execute(&Instruction::INR(Operand::A));
+        cpu.execute(&Instruction::INR(Operand::A), &mut MockMachine);
 
         assert_eq!(cpu.registers.a, 0x9A);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2235,7 +2277,7 @@ mod tests {
         cpu.registers.h = 0x3A;
         cpu.registers.l = 0x7C;
         cpu.memory[0x3A7C] = 0x40;
-        cpu.execute(&Instruction::DCR(Operand::M));
+        cpu.execute(&Instruction::DCR(Operand::M), &mut MockMachine);
 
         assert_eq!(cpu.memory[0x3A7C], 0x3F);
         assert_eq!(cpu.condition_codes.carry, false);
@@ -2250,14 +2292,14 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0;
         cpu.registers.e = 0x2B;
-        cpu.execute(&Instruction::MOV(Operand::A, Operand::E));
+        cpu.execute(&Instruction::MOV(Operand::A, Operand::E), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x2B);
         assert_eq!(cpu.registers.e, 0x2B);
 
         cpu.registers.a = 0x5A;
         cpu.registers.h = 0x2B;
         cpu.registers.l = 0xE9;
-        cpu.execute(&Instruction::MOV(Operand::M, Operand::A));
+        cpu.execute(&Instruction::MOV(Operand::M, Operand::A), &mut MockMachine);
         assert_eq!(cpu.memory[0x2BE9], 0x5A);
         assert_eq!(cpu.registers.a, 0x5A);
         assert_eq!(cpu.registers.h, 0x2B);
@@ -2268,14 +2310,14 @@ mod tests {
     fn test_mvi() {
         let mut cpu = Cpu::new();
         assert_eq!(cpu.registers.b, 0);
-        cpu.execute(&Instruction::MVI(Operand::B, 0x3C));
+        cpu.execute(&Instruction::MVI(Operand::B, 0x3C), &mut MockMachine);
         assert_eq!(cpu.registers.b, 0x3C);
     }
 
     #[test]
     fn test_lxi() {
         let mut cpu = Cpu::new();
-        cpu.execute(&Instruction::LXI(Operand::H, 0x103));
+        cpu.execute(&Instruction::LXI(Operand::H, 0x103), &mut MockMachine);
         assert_eq!(cpu.registers.h, 0x1);
         assert_eq!(cpu.registers.l, 0x3);
     }
@@ -2286,7 +2328,7 @@ mod tests {
         cpu.registers.a = 0x5C;
         cpu.registers.b = 0x3F;
         cpu.registers.c = 0x16;
-        cpu.execute(&Instruction::STAX(Operand::B));
+        cpu.execute(&Instruction::STAX(Operand::B), &mut MockMachine);
         assert_eq!(cpu.memory[0x3F16], 0x5C);
     }
 
@@ -2296,7 +2338,7 @@ mod tests {
         cpu.registers.d = 0x93;
         cpu.registers.e = 0x8B;
         cpu.memory[0x938B] = 0x5C;
-        cpu.execute(&Instruction::LDAX(Operand::D));
+        cpu.execute(&Instruction::LDAX(Operand::D), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x5C);
     }
 
@@ -2304,7 +2346,7 @@ mod tests {
     fn test_sta() {
         let mut cpu = Cpu::new();
         cpu.registers.a = 0xFF;
-        cpu.execute(&Instruction::STA(0x5B3));
+        cpu.execute(&Instruction::STA(0x5B3), &mut MockMachine);
         assert_eq!(cpu.memory[0x5b3], 0xFF);
     }
 
@@ -2312,7 +2354,7 @@ mod tests {
     fn test_lda() {
         let mut cpu = Cpu::new();
         cpu.memory[0x300] = 0xB;
-        cpu.execute(&Instruction::LDA(0x300));
+        cpu.execute(&Instruction::LDA(0x300), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xB);
     }
 
@@ -2321,7 +2363,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.registers.h = 0xAE;
         cpu.registers.l = 0x29;
-        cpu.execute(&Instruction::SHLD(0x10A));
+        cpu.execute(&Instruction::SHLD(0x10A), &mut MockMachine);
         assert_eq!(cpu.memory[0x10A], 0x29);
         assert_eq!(cpu.memory[0x10B], 0xAE);
     }
@@ -2331,7 +2373,7 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.memory[0x25B] = 0xFF;
         cpu.memory[0x25C] = 0x3;
-        cpu.execute(&Instruction::LHLD(0x25B));
+        cpu.execute(&Instruction::LHLD(0x25B), &mut MockMachine);
         assert_eq!(cpu.registers.l, 0xFF);
         assert_eq!(cpu.registers.h, 0x3);
     }
@@ -2343,7 +2385,7 @@ mod tests {
         cpu.registers.e = 0x55;
         cpu.registers.h = 0x0;
         cpu.registers.l = 0xFF;
-        cpu.execute(&Instruction::XCHG);
+        cpu.execute(&Instruction::XCHG, &mut MockMachine);
         assert_eq!(cpu.registers.d, 0x0);
         assert_eq!(cpu.registers.e, 0xFF);
         assert_eq!(cpu.registers.h, 0x33);

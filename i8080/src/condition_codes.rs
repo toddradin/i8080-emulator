@@ -1,4 +1,4 @@
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ConditionCodes {
     pub carry: bool,
     pub zero: bool,

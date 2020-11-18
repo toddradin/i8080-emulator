@@ -7,58 +7,111 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
+      
+      - name: Run cargo check for i8080
+        uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --manifest-path i8080/Cargo.toml
+
+      - name: Run cargo check for space-invaders
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --manifest-path space-invaders/Cargo.toml
 
   test:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
+
+      - name: Install sdl2
+        run: sudo apt-get install libsdl2-dev
+
+      - name: Run cargo test for i8080
+        uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --manifest-path i8080/Cargo.toml
+
+      - name: Run cargo test for space-invaders
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path space-invaders/Cargo.toml
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Run cargo fmt for i8080
+        uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: --all -- --check
+          args: --manifest-path i8080/Cargo.toml --all -- --check
+
+      - name: Run cargo fmt for space-invaders
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path space-invaders/Cargo.toml --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
+
+      - name: Install clippy
+        run: rustup component add clippy
+
+      - name: Run cargo clippy for i8080
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --manifest-path i8080/Cargo.toml -- -D warnings
+
+      - name: Run cargo clippy for space-invaders
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --manifest-path space-invaders/Cargo.toml -- -D warnings
