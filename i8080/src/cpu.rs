@@ -674,6 +674,8 @@ where
         self.sp = self.sp.wrapping_sub(2);
     }
 
+    // The contents of the memory pointed at by the stack pointer is popped off
+    // the stack and the stack pointer is incremented by two.
     fn pop_stack(&mut self) -> u16 {
         let lo = self.memory.read(self.sp) as u16;
         let hi = self.memory.read(self.sp + 1) as u16;
