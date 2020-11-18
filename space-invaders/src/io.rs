@@ -15,8 +15,8 @@ bitflags! {
 }
 
 pub struct SpaceInvadersIO {
-    keyboard: Key,
-    port: u8,
+    first_port: u8,
+    second_port: u8,
     shift0: u8,
     shift1: u8,
     shift_offset: u8,
@@ -25,8 +25,8 @@ pub struct SpaceInvadersIO {
 impl SpaceInvadersIO {
     pub fn new() -> SpaceInvadersIO {
         SpaceInvadersIO {
-            keyboard: Key::empty(),
-            port: 0,
+            first_port: 1,
+            second_port: 0,
             shift0: 0,
             shift1: 0,
             shift_offset: 0,
@@ -38,8 +38,8 @@ impl MachineIO for SpaceInvadersIO {
     fn machine_in(&mut self, port: u8) -> u8 {
         match port {
             0 => 0x0F,
-            1 => self.port,
-            2 => 0,
+            1 => self.first_port,
+            2 => self.second_port,
             3 => {
                 let val = ((self.shift1 as u16) << 8) | self.shift0 as u16;
                 ((val >> (8 - self.shift_offset)) & 0xFF) as u8
@@ -71,12 +71,10 @@ impl MachineIO for SpaceInvadersIO {
 
 impl SpaceInvadersIO {
     pub fn press(&mut self, key: Key) {
-        println!("press() {:?}", self.keyboard);
-        self.keyboard.insert(key);
+        self.first_port |= key.bits() as u8;
     }
 
     pub fn release(&mut self, key: Key) {
-        println!("release() {:?}", self.keyboard);
-        self.keyboard.remove(key);
+        self.first_port &= !key.bits() as u8;
     }
 }

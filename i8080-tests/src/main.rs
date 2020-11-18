@@ -1,9 +1,10 @@
 use i8080::cpu::Cpu;
 use i8080::instruction::Instruction;
 use i8080::machine::MachineIO;
+use i8080::memory_bus::MemoryMap;
 
 struct TestMachine<'a> {
-    cpu: &'a mut Cpu,
+    cpu: &'a mut Cpu<TestMemory>,
 }
 
 impl<'a> MachineIO for TestMachine<'a> {
@@ -18,8 +19,8 @@ impl<'a> MachineIO for TestMachine<'a> {
         } else if port == 1 {
             if self.cpu.registers.c == 9 {
                 let mut addr = self.cpu.registers.get_de() as usize;
-                while self.cpu.memory[addr] != b'$' {
-                    print!("{}", self.cpu.memory[addr] as char);
+                while self.cpu.memory.read(addr as u16) != b'$' {
+                    print!("{}", self.cpu.memory.read(addr as u16) as char);
                     addr += 1;
                 }
             } else if self.cpu.registers.c == 2 {
@@ -29,31 +30,65 @@ impl<'a> MachineIO for TestMachine<'a> {
     }
 }
 
+#[derive(Clone)]
+struct TestMemory {
+    pub memory: [u8; 0xFFFF],
+}
+
+impl TestMemory {
+    fn new() -> Self {
+        let mut buffer = [0; 0xFFFF];
+        TestMemory::load_rom(&mut buffer);
+        Self { memory: buffer }
+    }
+}
+
+impl MemoryMap for TestMemory {
+    fn load_rom(buffer: &mut [u8]) {
+        let offset = 0x100;
+        let rom = include_bytes!("../test-roms/TST8080.COM");
+        buffer[offset as usize..(rom.len() + offset as usize)].copy_from_slice(rom);
+    }
+
+    fn read(&mut self, addr: u16) -> u8 {
+        self.memory[addr as usize]
+    }
+
+    fn read_slice(&mut self, addr: u16) -> &[u8] {
+        &self.memory[addr as usize..]
+    }
+
+    fn write(&mut self, addr: u16, val: u8) {
+        self.memory[addr as usize] = val;
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
-    let mut cpu = Cpu::new();
+    let memory = TestMemory::new();
+    let mut cpu = Cpu::new(memory);
 
     let offset = 0x100;
-    let buffer = include_bytes!("../test-roms/TST8080.COM");
-    cpu.memory[offset as usize..(buffer.len() + offset as usize)].copy_from_slice(buffer);
+    // let buffer = include_bytes!("../test-roms/TST8080.COM");
+    // cpu.memory[offset as usize..(buffer.len() + offset as usize)].copy_from_slice(buffer);
 
     // The tests begin at 0x100 so advance pc to address
     cpu.pc = 0x100;
 
     // Map OUT 0,a to memory address 0x0. When machine_out() receives port 0,
     // the program will exit.
-    cpu.memory[0x0] = 0xD3;
-    cpu.memory[0x1] = 0x00;
+    cpu.memory.write(0x0, 0xD3);
+    cpu.memory.write(0x1, 0x00);
 
     // Map OUT 1,a to memory address 0x5. When machine_out() receives port 1,
     // the program will output diagnostic or error messages from the test rom.
-    cpu.memory[0x5] = 0xD3;
-    cpu.memory[0x6] = 0x01;
-    cpu.memory[0x7] = 0xC9;
+    cpu.memory.write(0x5, 0xD3);
+    cpu.memory.write(0x6, 0x01);
+    cpu.memory.write(0x7, 0xC9);
 
     let debug = false;
     let mut i = 0;
-    while cpu.pc < cpu.memory.len() as u16 {
-        let instr = Instruction::from(&cpu.memory[cpu.pc as usize..]);
+    while cpu.pc < 0xFFFF as u16 {
+        let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
         let (next_pc, cycles) = cpu.execute(
             &instr,
             &mut TestMachine {

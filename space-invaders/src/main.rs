@@ -4,25 +4,15 @@ extern crate i8080;
 extern crate sdl2;
 use crate::display::Display;
 use crate::io::{Key, SpaceInvadersIO};
+use crate::memory::SpaceInvadersMemory;
 
 mod display;
 mod io;
+mod memory;
 
 use i8080::cpu::Cpu;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use std::fs::File;
-use std::io::Read;
-
-fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
-    let mut addr = 0x00;
-    for f in ['h', 'g', 'f', 'e'].iter() {
-        let mut file = File::open(format!("roms/invaders.{}", f))?;
-        file.read(&mut buffer[addr..addr + 0x800])?;
-        addr += 0x800;
-    }
-    Ok(())
-}
 
 fn keycode_to_key(keycode: Keycode) -> Option<Key> {
     let key = match keycode {
@@ -42,12 +32,9 @@ fn keycode_to_key(keycode: Keycode) -> Option<Key> {
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let cpu = &mut Cpu::new();
+    let memory = SpaceInvadersMemory::new();
     let machine = &mut SpaceInvadersIO::new();
-    match load_roms(&mut cpu.memory) {
-        Ok(_) => (),
-        Err(error) => panic!("Problem opening the file: {:?}", error),
-    }
+    let cpu = &mut Cpu::new(memory);
 
     let sdl_context = sdl2::init().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -88,31 +75,20 @@ fn main() -> Result<(), std::io::Error> {
             }
         }
 
-        // After every CYCLES_PER_HALF_FRAME, an interrupt should be triggered.
-        // This will be run twice so that the correct number of cycles per
-        // frame is reached.
-        for _ in 0..2 {
-            let mut cycles_to_run = CYCLES_PER_HALF_FRAME;
-            while cycles_to_run > 0 {
-                cycles_to_run -= cpu.step(machine) as i32;
-            }
-
-            if cpu.interrupts_enabled {
-                match next_interrupt {
-                    0x8 => {
-                        display.draw_display(cpu, true);
-                        cpu.interrupt(0x8);
-                        next_interrupt = 0x10;
-                    }
-                    0x10 => {
-                        display.draw_display(cpu, false);
-                        cpu.interrupt(0x10);
-                        next_interrupt = 0x8;
-                    }
-                    _ => {}
-                }
-            }
+        let mut cycle = 0;
+        while cycle <= CYCLES_PER_HALF_FRAME {
+            cycle += cpu.step(machine) as i32;
         }
+        display.draw_display(cpu, true);
+        cpu.interrupt(next_interrupt);
+        next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
+
+        while cycle <= CYCLES_PER_FRAME {
+            cycle += cpu.step(machine) as i32;
+        }
+        display.draw_display(cpu, false);
+        cpu.interrupt(next_interrupt);
+        next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
     }
 
     Ok(())

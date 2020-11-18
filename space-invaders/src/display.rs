@@ -1,5 +1,8 @@
 use i8080::cpu::Cpu;
 
+use crate::i8080::memory_bus::MemoryMap;
+use crate::memory::SpaceInvadersMemory;
+
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
@@ -27,7 +30,7 @@ impl Display {
         Display { canvas: canvas }
     }
 
-    pub fn draw_display(&mut self, cpu: &Cpu, top: bool) {
+    pub fn draw_display(&mut self, cpu: &mut Cpu<SpaceInvadersMemory>, top: bool) {
         self.canvas.clear();
         let start_mem = if top { 0x2400 } else { 0x3200 };
         for offset in 0x0..0xE00 {
@@ -38,7 +41,7 @@ impl Display {
                 (offset / 32) + 112
             };
             let y = 248 - ((offset % 32) * 8);
-            let byte = cpu.memory[video_ram_byte];
+            let byte = cpu.memory.read(video_ram_byte);
             if byte > 0 {
                 self.draw_byte(byte, x as u32, y as u32);
             }
