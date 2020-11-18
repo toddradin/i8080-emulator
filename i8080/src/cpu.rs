@@ -507,13 +507,7 @@ where
     // return the new address the pc will be set to.
     // Condition bits affected: None
     fn call(&mut self, addr: u16) -> u16 {
-        let val = self.pc + 3;
-        //note: Moved some of the push() code here to help keep that function cleaner
-        //can be changed later if there are issues with it.
-        //self.push(pc);
-        self.memory.write(self.sp - 1, ((val & 0xFF00) >> 8) as u8);
-        self.memory.write(self.sp - 2, (val & 0xFF) as u8);
-        self.sp = self.sp.wrapping_sub(2);
+        self.push_stack(self.pc + 3);
         addr
     }
 
@@ -601,12 +595,7 @@ where
     // stack.
     // Condition bits affected: None
     fn ret(&mut self) -> u16 {
-        //note: Moved some of the push() code here to help keep that function cleaner
-        //can be changed later if there are issues with it.
-        //self.pop()
-        let res = (self.memory.read(self.sp + 1) as u16) << 8 | self.memory.read(self.sp) as u16;
-        self.sp = self.sp.wrapping_add(2);
-        res
+        self.pop_stack()
     }
 
     // Restart instruction. Pushes the pc onto the stack and returns a return
@@ -622,28 +611,21 @@ where
     fn push(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
-                let res = self.registers.get_bc();
-                self.memory.write(self.sp - 1, ((res & 0xFF00) >> 8) as u8);
-                self.memory.write(self.sp - 2, (res & 0xFF) as u8);
-                self.sp = self.sp.wrapping_sub(2);
+                let val = self.registers.get_bc();
+                self.push_stack(val);
             }
             Operand::D => {
-                let res = self.registers.get_de();
-                self.memory.write(self.sp - 1, ((res & 0xFF00) >> 8) as u8);
-                self.memory.write(self.sp - 2, (res & 0xFF) as u8);
-                self.sp = self.sp.wrapping_sub(2);
+                let val = self.registers.get_de();
+                self.push_stack(val);
             }
             Operand::H => {
-                let res = self.registers.get_hl();
-                self.memory.write(self.sp - 1, ((res & 0xFF00) >> 8) as u8);
-                self.memory.write(self.sp - 2, (res & 0xFF) as u8);
-                self.sp = self.sp.wrapping_sub(2);
+                let val = self.registers.get_hl();
+                self.push_stack(val);
             }
             Operand::PSW => {
-                self.memory.write(self.sp - 1, self.registers.a);
-                self.memory
-                    .write(self.sp - 2, self.condition_codes.flags_to_psw());
-                self.sp = self.sp.wrapping_sub(2);
+                let val =
+                    (self.registers.a as u16) << 8 | self.condition_codes.flags_to_psw() as u16;
+                self.push_stack(val);
             }
             _ => {
                 //TODO: write error message later
@@ -658,32 +640,45 @@ where
     fn pop(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
-                self.registers.c = self.memory.read(self.sp);
-                self.registers.b = self.memory.read(self.sp + 1);
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.set_bc(val);
             }
             Operand::D => {
-                self.registers.e = self.memory.read(self.sp);
-                self.registers.d = self.memory.read(self.sp + 1);
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.set_de(val);
             }
             Operand::H => {
-                self.registers.l = self.memory.read(self.sp);
-                self.registers.h = self.memory.read(self.sp + 1);
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.set_hl(val);
             }
             Operand::PSW => {
-                // self.registers.a = self.memory[self.sp as usize];
-                self.registers.a = self.memory.read(self.sp + 1);
-                let res = self.memory.read(self.sp);
-                self.condition_codes.psw_to_flags(res);
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.a = (val >> 8) as u8;
+                let psw = (val & 0xFF) as u8;
+                self.condition_codes.psw_to_flags(psw);
             }
             _ => {
                 //TODO: write error message later
                 unimplemented!();
             }
         };
+    }
+
+    // The contents of the specified value is pushed onto the stack and the
+    // stack pointer is decremented by two.
+    fn push_stack(&mut self, val: u16) {
+        self.memory
+            .write(self.sp.wrapping_sub(1), ((val & 0xFF00) >> 8) as u8);
+        self.memory
+            .write(self.sp.wrapping_sub(2), (val & 0xFF) as u8);
+        self.sp = self.sp.wrapping_sub(2);
+    }
+
+    fn pop_stack(&mut self) -> u16 {
+        let lo = self.memory.read(self.sp) as u16;
+        let hi = self.memory.read(self.sp + 1) as u16;
+        self.sp = self.sp.wrapping_add(2);
+        hi << 8 | lo
     }
 
     // Double Add. The 16-bit number in the specified register pair is added to the
@@ -813,10 +808,7 @@ where
     pub fn interrupt(&mut self, addr: u16) {
         if self.interrupts_enabled {
             self.interrupts_enabled = false;
-            self.memory
-                .write(self.sp - 1, ((self.pc & 0xFF00) >> 8) as u8);
-            self.memory.write(self.sp - 2, (self.pc & 0xFF) as u8);
-            self.sp = self.sp.wrapping_sub(2);
+            self.push_stack(self.pc);
             self.pc = addr;
         }
     }

@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 use i8080::cpu::Cpu;
 use i8080::instruction::Instruction;
 use i8080::machine::MachineIO;
@@ -23,8 +25,10 @@ impl<'a> MachineIO for TestMachine<'a> {
                     print!("{}", self.cpu.memory.read(addr as u16) as char);
                     addr += 1;
                 }
+                io::stdout().flush().ok().expect("Could not flush stdout");
             } else if self.cpu.registers.c == 2 {
                 print!("{}", self.cpu.registers.e as char);
+                io::stdout().flush().ok().expect("Could not flush stdout");
             }
         }
     }
@@ -32,12 +36,12 @@ impl<'a> MachineIO for TestMachine<'a> {
 
 #[derive(Clone)]
 struct TestMemory {
-    pub memory: [u8; 0xFFFF],
+    pub memory: [u8; 0x10000],
 }
 
 impl TestMemory {
     fn new() -> Self {
-        let mut buffer = [0; 0xFFFF];
+        let mut buffer = [0; 0x10000];
         TestMemory::load_rom(&mut buffer);
         Self { memory: buffer }
     }
@@ -46,7 +50,7 @@ impl TestMemory {
 impl MemoryMap for TestMemory {
     fn load_rom(buffer: &mut [u8]) {
         let offset = 0x100;
-        let rom = include_bytes!("../test-roms/TST8080.COM");
+        let rom = include_bytes!("../test-roms/8080PRE.COM");
         buffer[offset as usize..(rom.len() + offset as usize)].copy_from_slice(rom);
     }
 
@@ -63,13 +67,9 @@ impl MemoryMap for TestMemory {
     }
 }
 
-fn main() -> Result<(), std::io::Error> {
+fn main() {
     let memory = TestMemory::new();
     let mut cpu = Cpu::new(memory);
-
-    let offset = 0x100;
-    // let buffer = include_bytes!("../test-roms/TST8080.COM");
-    // cpu.memory[offset as usize..(buffer.len() + offset as usize)].copy_from_slice(buffer);
 
     // The tests begin at 0x100 so advance pc to address
     cpu.pc = 0x100;
@@ -86,8 +86,7 @@ fn main() -> Result<(), std::io::Error> {
     cpu.memory.write(0x7, 0xC9);
 
     let debug = false;
-    let mut i = 0;
-    while cpu.pc < 0xFFFF as u16 {
+    loop {
         let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
         let (next_pc, cycles) = cpu.execute(
             &instr,
@@ -98,14 +97,10 @@ fn main() -> Result<(), std::io::Error> {
         cpu.pc = next_pc;
 
         if debug {
-            println!("{:?} {:?}", i, instr);
             println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
             println!("cycles: {}", cycles);
             println!("{:#x?}", cpu.condition_codes);
             println!("{:#x?}\n", cpu.registers);
         }
-        i += 1;
     }
-
-    Ok(())
 }

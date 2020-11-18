@@ -17,7 +17,7 @@ pub const VIDEO_RAM_SIZE: usize = VIDEO_RAM_END - VIDEO_RAM_BEGIN + 1;
 
 pub const RAM_MIRROR_BEGIN: usize = 0x4000;
 pub const RAM_MIRROR_END: usize = 0xFFFF;
-pub const RAM_MIRROR_SIZE: usize = VIDEO_RAM_END - VIDEO_RAM_BEGIN + 1;
+pub const RAM_MIRROR_SIZE: usize = RAM_MIRROR_END - RAM_MIRROR_BEGIN + 1;
 
 pub struct SpaceInvadersMemory {
     rom: [u8; ROM_SIZE],
@@ -44,7 +44,7 @@ impl MemoryMap for SpaceInvadersMemory {
         let mut addr = 0x00;
         for f in ['h', 'g', 'f', 'e'].iter() {
             let mut file = File::open(format!("roms/invaders.{}", f)).unwrap();
-            file.read(&mut buffer[addr..addr + 0x800]);
+            file.read(&mut buffer[addr..addr + 0x800]).unwrap();
             addr += 0x800;
         }
     }
@@ -55,7 +55,7 @@ impl MemoryMap for SpaceInvadersMemory {
             ROM_BEGIN..=ROM_END => self.rom[addr],
             WORKING_RAM_BEGIN..=WORKING_RAM_END => self.working_ram[addr - WORKING_RAM_BEGIN],
             VIDEO_RAM_BEGIN..=VIDEO_RAM_END => self.video_ram[addr - VIDEO_RAM_BEGIN],
-            RAM_MIRROR_BEGIN..=RAM_MIRROR_END => self.ram_mirror[addr - RAM_MIRROR_BEGIN],
+            RAM_MIRROR_BEGIN..=RAM_MIRROR_END => self.working_ram[addr - RAM_MIRROR_BEGIN],
             _ => panic!(
                 "Attempting to read from an unknown area of memory: {:#x?}",
                 addr
@@ -67,9 +67,12 @@ impl MemoryMap for SpaceInvadersMemory {
         let addr = addr as usize;
         match addr {
             ROM_BEGIN..=ROM_END => &self.rom[addr..ROM_END],
-            WORKING_RAM_BEGIN..=WORKING_RAM_END => &self.working_ram[addr..WORKING_RAM_END],
-            VIDEO_RAM_BEGIN..=VIDEO_RAM_END => &self.video_ram[addr..VIDEO_RAM_END],
-            RAM_MIRROR_BEGIN..=RAM_MIRROR_END => &self.ram_mirror[addr..RAM_MIRROR_END],
+            WORKING_RAM_BEGIN..=WORKING_RAM_END => &self.working_ram[addr - WORKING_RAM_BEGIN..],
+            VIDEO_RAM_BEGIN..=VIDEO_RAM_END => &self.video_ram[addr - VIDEO_RAM_BEGIN..],
+            RAM_MIRROR_BEGIN..=RAM_MIRROR_END => {
+                // &self.ram_mirror[addr - RAM_MIRROR_BEGIN..RAM_MIRROR_BEGIN]
+                &self.working_ram[addr - RAM_MIRROR_BEGIN..]
+            }
             _ => panic!(
                 "Attempting to read from an unknown area of memory: {:#x?}",
                 addr
@@ -82,7 +85,7 @@ impl MemoryMap for SpaceInvadersMemory {
         match addr {
             WORKING_RAM_BEGIN..=WORKING_RAM_END => self.working_ram[addr - WORKING_RAM_BEGIN] = val,
             VIDEO_RAM_BEGIN..=VIDEO_RAM_END => self.video_ram[addr - VIDEO_RAM_BEGIN] = val,
-            _ => panic!("Attempting to write to an invalid memory location {:#x?}. Only working ram and video ram are writeable.", addr),
+            _ => (),
         }
     }
 }
