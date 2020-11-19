@@ -90,9 +90,12 @@ fn main() {
     const STEP_CYCLES: u16 = 16_667;
     loop {
         let mut cyc = 0;
-        
         while cyc < STEP_CYCLES {
             let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
+        
+                // if i > 4917 {
+                //     println!("{:?} {:?}", i, instr);
+                // }
             let (next_pc, cycles) = cpu.execute(
                 &instr,
                 &mut TestMachine {
