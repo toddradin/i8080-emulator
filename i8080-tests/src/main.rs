@@ -50,7 +50,7 @@ impl TestMemory {
 impl MemoryMap for TestMemory {
     fn load_rom(buffer: &mut [u8]) {
         let offset = 0x100;
-        let rom = include_bytes!("../test-roms/8080PRE.COM");
+        let rom = include_bytes!("../test-roms/CPUTEST.COM");
         buffer[offset as usize..(rom.len() + offset as usize)].copy_from_slice(rom);
     }
 
@@ -86,21 +86,31 @@ fn main() {
     cpu.memory.write(0x7, 0xC9);
 
     let debug = false;
+    let mut i = 0;
+    const STEP_CYCLES: u16 = 16_667;
     loop {
-        let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
-        let (next_pc, cycles) = cpu.execute(
-            &instr,
-            &mut TestMachine {
-                cpu: &mut cpu.clone(),
-            },
-        );
-        cpu.pc = next_pc;
-
-        if debug {
-            println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
-            println!("cycles: {}", cycles);
-            println!("{:#x?}", cpu.condition_codes);
-            println!("{:#x?}\n", cpu.registers);
+        let mut cyc = 0;
+        
+        while cyc < STEP_CYCLES {
+            let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
+            let (next_pc, cycles) = cpu.execute(
+                &instr,
+                &mut TestMachine {
+                    cpu: &mut cpu.clone(),
+                },
+            );
+            cpu.pc = next_pc;
+            cyc += cycles as u16;
+            if debug {
+                println!("{:?} {:?}", i, instr);
+                println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
+                println!("cycles: {}", cycles);
+                println!("{:#x?}", cpu.condition_codes);
+                println!("{:#x?}\n", cpu.registers);
+            }
+            i += 1;
         }
+        std::thread::sleep(std::time::Duration::from_micros(16));
+
     }
 }

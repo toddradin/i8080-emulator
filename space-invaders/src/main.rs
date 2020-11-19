@@ -79,10 +79,7 @@ fn main() -> Result<(), std::io::Error> {
         // This will be run twice so that the correct number of cycles per
         // frame is reached.
         for _ in 0..2 {
-            let mut cycles_to_run = CYCLES_PER_HALF_FRAME;
-            while cycles_to_run >= 0 {
-                cycles_to_run -= cpu.step(machine) as i32;
-            }
+            cpu.step(machine, CYCLES_PER_HALF_FRAME);
             cpu.interrupt(next_interrupt);
             next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
             display.draw_display_whole(cpu);

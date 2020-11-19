@@ -35,22 +35,26 @@ where
         }
     }
 
-    pub fn step<IO: MachineIO>(&mut self, machine: &mut IO) -> u8 {
+    pub fn step<IO: MachineIO>(&mut self, machine: &mut IO, mut run_cycles: i32) {
         let debug = false;
+        
+        while run_cycles >= 0 {
+            let instr = Instruction::from(self.memory.read_slice(self.pc));
+            let (next_pc, cycles) = self.execute(&instr, machine);
+            self.pc = next_pc;
 
-        let instr = Instruction::from(self.memory.read_slice(self.pc));
-        let (next_pc, cycles) = self.execute(&instr, machine);
-        self.pc = next_pc;
+            if debug {
+                println!("{:?}", instr);
+                println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
+                println!("cycles: {}", cycles);
+                println!("{:#x?}", self.condition_codes);
+                println!("{:#x?}\n", self.registers);
+            }
 
-        if debug {
-            println!("{:?}", instr);
-            println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
-            println!("cycles: {}", cycles);
-            println!("{:#x?}", self.condition_codes);
-            println!("{:#x?}\n", self.registers);
+            run_cycles -= cycles as i32;
         }
 
-        cycles
+
     }
 
     pub fn execute<IO: MachineIO>(
