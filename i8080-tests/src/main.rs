@@ -83,7 +83,7 @@ fn main() {
     cpu.memory.write(0x6, 0x01);
     cpu.memory.write(0x7, 0xC9);
 
-    let debug = true;
+    let debug = false;
 
     loop {
         let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
