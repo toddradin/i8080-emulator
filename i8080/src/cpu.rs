@@ -1156,7 +1156,6 @@ where
             _ => panic!("DCR only accepts registers or a memory location"),
         };
         // update flags
-        self.condition_codes.reset_carry();
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
@@ -1172,15 +1171,15 @@ where
         let res = (reg_a as u16)
             .wrapping_add(val as u16)
             .wrapping_add(carry as u16);
-        // put result in accumulator
-        self.registers.a = res as u8;
-        // update flags
+
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(res > 0xFF);
+        self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
-            .set_aux_carry((reg_a & 0xF) + (val & 0xF) + (carry & 0xF) > 0xF);
+            .set_aux_carry((reg_a & 0xF) + (val & 0xF) + (carry) > 0xF);
+
+        self.registers.a = res as u8;
     }
 
     // The specified byte is subtracted from the accumulator. If there is no carry
@@ -1205,20 +1204,18 @@ where
     // value is then subtracted from the accumulator.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn sbb(&mut self, val: u8) {
-        let reg_a = self.registers.a;
-        let borrow: u8 = if self.condition_codes.carry { 1 } else { 0 };
-        let res: u16 = (reg_a as u16)
-            .wrapping_sub(val as u16)
-            .wrapping_sub(borrow as u16);
-        // put result in accumulator
-        self.registers.a = res as u8;
-        // update flags
+        let reg_a = self.registers.a as u16;
+        let borrow: u16 = if self.condition_codes.carry { 1 } else { 0 };
+        let res: u16 = (reg_a).wrapping_sub(val as u16).wrapping_sub(borrow);
+
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
         self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
             .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) - (borrow as i8) >= 0);
+
+        self.registers.a = res as u8;
     }
 
     // The byte of immediate data is added to the contents of the accumulator.
