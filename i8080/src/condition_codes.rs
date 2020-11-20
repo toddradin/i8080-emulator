@@ -21,7 +21,7 @@ impl ConditionCodes {
     }
 
     pub fn set_sign(&mut self, val: u8) {
-        self.sign = (val & 0x80) == 0x80
+        self.sign = (val & 0x80) != 0
     }
 
     pub fn set_parity(&mut self, val: u8) {
@@ -40,9 +40,7 @@ impl ConditionCodes {
         let mut psw: u8 = 0;
         psw |= (self.sign as u8) << 7;
         psw |= (self.zero as u8) << 6;
-        psw &= !(0x1 << 5);
         psw |= (self.aux_carry as u8) << 4;
-        psw &= !(0x1 << 3);
         psw |= (self.parity as u8) << 2;
         psw |= 0x1 << 1;
         psw |= self.carry as u8;
@@ -51,10 +49,10 @@ impl ConditionCodes {
     }
 
     pub fn psw_to_flags(&mut self, psw: u8) {
-        self.sign = (psw & 0x80) > 0;
-        self.zero = (psw & 0x40) > 0;
-        self.aux_carry = (psw & 0x10) > 0;
-        self.parity = (psw & 0x4) > 0;
+        self.sign = ((psw >> 7) & 0x1) > 0;
+        self.zero = ((psw >> 6) & 0x1) > 0;
+        self.aux_carry = ((psw >> 4) & 0x1) > 0;
+        self.parity = ((psw >> 2) & 0x1) > 0;
         self.carry = (psw & 0x1) > 0;
     }
 }

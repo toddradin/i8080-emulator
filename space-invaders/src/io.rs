@@ -1,4 +1,6 @@
+use i8080::cpu::Cpu;
 use i8080::machine::MachineIO;
+use i8080::memory_bus::MemoryMap;
 
 bitflags! {
     pub struct Key: u16 {
@@ -48,7 +50,7 @@ impl MachineIO for SpaceInvadersIO {
         }
     }
 
-    fn machine_out(&mut self, port: u8, val: u8) {
+    fn machine_out<M: MemoryMap>(&mut self, _: &mut Cpu<M>, port: u8, val: u8) {
         match port {
             2 => self.shift_offset = val & 0x7,
             3 => {

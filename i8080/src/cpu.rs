@@ -37,7 +37,7 @@ where
 
     pub fn step<IO: MachineIO>(&mut self, machine: &mut IO, mut run_cycles: i32) {
         let debug = false;
-        
+
         while run_cycles >= 0 {
             let instr = Instruction::from(self.memory.read_slice(self.pc));
             let (next_pc, cycles) = self.execute(&instr, machine);
@@ -53,8 +53,6 @@ where
 
             run_cycles -= cycles as i32;
         }
-
-
     }
 
     pub fn execute<IO: MachineIO>(
@@ -796,7 +794,7 @@ where
 
     // The contents of the accumulator are sent to output device number exp
     fn output<IO: MachineIO>(&mut self, machine: &mut IO, port: u8) {
-        machine.machine_out(port, self.registers.a);
+        machine.machine_out(self, port, self.registers.a);
     }
 
     // Enable Interrupts
@@ -901,7 +899,7 @@ where
     fn and(&mut self, val: u8) {
         // The 8080 logical AND instructions set the flag to reflect the
         // logical OR of bit 3 of the values involved in the AND operation.
-        let aux_carry = ((self.registers.a | val) & 0x8) == 0x8;
+        let aux_carry = ((self.registers.a | val) & 0x8) != 0;
         self.registers.a &= val;
 
         self.condition_codes.reset_carry();
@@ -953,12 +951,12 @@ where
 
         self.condition_codes.set_carry(self.registers.a < val);
         self.condition_codes.set_zero(val);
-        self.condition_codes.set_sign(self.registers.a);
-        self.condition_codes.set_parity(self.registers.a);
+        self.condition_codes.set_sign(val);
+        self.condition_codes.set_parity(val);
         // Set aux_carry if the lower nibble of the accumulator is less than
         // the lower nibble of the value after subtraction.
         self.condition_codes
-            .set_aux_carry((self.registers.a & 0xF) < (val & 0xF));
+            .set_aux_carry((self.registers.a as i8 & 0xF) - (val as i8 & 0xF) >= 0);
     }
 
     // Rotate the accumulator left. The Carry bit is set equal to the
@@ -967,8 +965,7 @@ where
     // transferred to the low-order bit position of the accumulator.
     // Condition bits affected: Carry
     fn rlc(&mut self) {
-        let carry = (self.registers.a & 0x80) >> 7;
-        self.registers.a = self.registers.a << 1 | carry;
+        self.registers.a = self.registers.a.rotate_left(1);
         self.condition_codes.carry = (self.registers.a & 0x1) > 0;
     }
 
@@ -978,8 +975,7 @@ where
     // transferred to the high-order bit position of the accumulator.
     // Condition bits affected: Carry
     fn rrc(&mut self) {
-        let carry = (self.registers.a & 0x1) << 7;
-        self.registers.a = self.registers.a >> 1 | carry;
+        self.registers.a = self.registers.a.rotate_right(1);
         self.condition_codes.carry = (self.registers.a & 0x80) > 0;
     }
 
@@ -1031,32 +1027,30 @@ where
     // two four-bit binary encoded digits.
     // Condition bits affected: Zero, Sign, Parity, Carry, Auxiliary Carry
     fn daa(&mut self) {
+        let mut val = 0;
+        let mut carry = self.condition_codes.carry;
+
+        let lsb = self.registers.a & 0x0F;
+        let msb = self.registers.a >> 4;
+
         // If the least significant four bits of the accumulator represents a
         // number greater than 9, or if the Auxiliary Carry bit is equal to
         // one, the accumulator is incremented by six. Otherwise, no
-        // incrementing occurs. If a carry out of the least significant four
-        // bits occurs, the Auxiliary Carry bit is set; otherwise it is reset.
-        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.aux_carry {
-            let high_bit = self.registers.a & 0x8;
-            self.registers.a = self.registers.a.wrapping_add(0x6);
-            self.condition_codes.aux_carry = (self.registers.a & 0x8) < high_bit;
+        // incrementing occurs.
+        if (lsb > 0x9) || self.condition_codes.aux_carry {
+            val += 0x6;
         }
         // If the most significant four bits of the accumulator now represent a
         // number greater than 9, or if the normal carry bit is equal to one,
         // the most significant four bits of the accumulator are incremented
-        // by six. Otherwise, no incrementing occurs. If a carry out of the
-        // most significant four bits occurs. the Carry bit is set; otherwise,
-        // it is unaffected.
-        if (self.registers.a & 0xF0 > 0x90) || self.condition_codes.carry {
-            let high_bit = (self.registers.a >> 4) & 0x8;
-            self.registers.a = self.registers.a.wrapping_add(0x60);
-            if ((self.registers.a >> 4) & 0x8) < high_bit {
-                self.condition_codes.set_carry(true);
-            }
+        // by six. Otherwise, no incrementing occurs.
+        if (msb > 0x9) || self.condition_codes.carry || (msb >= 9 && lsb > 9) {
+            val += 0x60;
+            carry = true;
         }
-        self.condition_codes.set_zero(self.registers.a);
-        self.condition_codes.set_sign(self.registers.a);
-        self.condition_codes.set_parity(self.registers.a);
+
+        self.add(val);
+        self.condition_codes.set_carry(carry);
     }
 
     // The specified byte is added to the contents of the accumulator.
@@ -1154,10 +1148,10 @@ where
                 self.registers.l
             }
             Operand::M => {
-                let location = self.registers.get_hl();
-                let val = self.memory.read(location).wrapping_sub(1);
-                self.memory.write(location, val);
-                self.memory.read(location)
+                let hl = self.registers.get_hl();
+                let val = self.memory.read(hl).wrapping_sub(1);
+                self.memory.write(hl, val);
+                self.memory.read(hl)
             }
             _ => panic!("DCR only accepts registers or a memory location"),
         };
@@ -1166,7 +1160,7 @@ where
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((res & 0xF) == 0xF);
+        self.condition_codes.set_aux_carry((res & 0xF) != 0xF);
     }
 
     // The specified byte plus the content of the Carry bit is added to the contents
@@ -1202,7 +1196,7 @@ where
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
             .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) >= 0);
     }
@@ -1222,9 +1216,9 @@ where
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
-            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & (0xF - (borrow as i8))) >= 0);
+            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) - (borrow as i8) >= 0);
     }
 
     // The byte of immediate data is added to the contents of the accumulator.
@@ -1395,7 +1389,7 @@ mod tests {
     }
 
     impl MemoryMap for MockMemory {
-        fn load_rom(buffer: &mut [u8]) {}
+        fn load_rom(_: &mut [u8]) {}
 
         fn read(&mut self, addr: u16) -> u8 {
             self.memory[addr as usize]
@@ -1417,7 +1411,7 @@ mod tests {
             0
         }
 
-        fn machine_out(&mut self, _: u8, _: u8) {}
+        fn machine_out<M: MemoryMap>(&mut self, _: &mut Cpu<M>, _: u8, _: u8) {}
     }
 
     #[test]
@@ -1919,7 +1913,7 @@ mod tests {
         assert_eq!(cpu.condition_codes.sign, false);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, true);
-        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
 
         cpu.registers.a = 0x2;
         cpu.registers.b = 0x5;
@@ -1927,10 +1921,10 @@ mod tests {
         assert_eq!(cpu.registers.a, 0x2);
         assert_eq!(cpu.registers.b, 0x5);
         assert_eq!(cpu.condition_codes.carry, true);
-        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.sign, true);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, false);
-        assert_eq!(cpu.condition_codes.aux_carry, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
     }
 
     #[test]
@@ -1981,17 +1975,17 @@ mod tests {
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
         assert_eq!(cpu.condition_codes.zero, false);
-        assert_eq!(cpu.condition_codes.parity, false);
-        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
 
         cpu.registers.a = 0x2;
         cpu.execute(&Instruction::CPI(0x40), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x2);
         assert_eq!(cpu.condition_codes.carry, true);
-        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.sign, true);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, false);
-        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
     }
 
     #[test]
@@ -2321,7 +2315,7 @@ mod tests {
         assert_eq!(cpu.condition_codes.sign, false);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, true);
-        assert_eq!(cpu.condition_codes.aux_carry, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
     }
 
     #[test]

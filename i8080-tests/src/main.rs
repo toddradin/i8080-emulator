@@ -5,35 +5,6 @@ use i8080::instruction::Instruction;
 use i8080::machine::MachineIO;
 use i8080::memory_bus::MemoryMap;
 
-struct TestMachine<'a> {
-    cpu: &'a mut Cpu<TestMemory>,
-}
-
-impl<'a> MachineIO for TestMachine<'a> {
-    fn machine_in(&mut self, _: u8) -> u8 {
-        0
-    }
-
-    fn machine_out(&mut self, port: u8, _: u8) {
-        if port == 0 {
-            println!("\n\nSignal to terminate the program has been received. Exiting.");
-            std::process::exit(0);
-        } else if port == 1 {
-            if self.cpu.registers.c == 9 {
-                let mut addr = self.cpu.registers.get_de() as usize;
-                while self.cpu.memory.read(addr as u16) != b'$' {
-                    print!("{}", self.cpu.memory.read(addr as u16) as char);
-                    addr += 1;
-                }
-                io::stdout().flush().ok().expect("Could not flush stdout");
-            } else if self.cpu.registers.c == 2 {
-                print!("{}", self.cpu.registers.e as char);
-                io::stdout().flush().ok().expect("Could not flush stdout");
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 struct TestMemory {
     pub memory: [u8; 0x10000],
@@ -50,7 +21,7 @@ impl TestMemory {
 impl MemoryMap for TestMemory {
     fn load_rom(buffer: &mut [u8]) {
         let offset = 0x100;
-        let rom = include_bytes!("../test-roms/CPUTEST.COM");
+        let rom = include_bytes!("../test-roms/8080EXM.COM");
         buffer[offset as usize..(rom.len() + offset as usize)].copy_from_slice(rom);
     }
 
@@ -64,6 +35,33 @@ impl MemoryMap for TestMemory {
 
     fn write(&mut self, addr: u16, val: u8) {
         self.memory[addr as usize] = val;
+    }
+}
+
+struct TestMachine;
+
+impl MachineIO for TestMachine {
+    fn machine_in(&mut self, _: u8) -> u8 {
+        0
+    }
+
+    fn machine_out<M: MemoryMap>(&mut self, cpu: &mut Cpu<M>, port: u8, _: u8) {
+        if port == 0 {
+            println!("\n\nSignal to terminate the program has been received. Exiting.");
+            std::process::exit(0);
+        } else if port == 1 {
+            if cpu.registers.c == 9 {
+                let mut addr = cpu.registers.get_de() as usize;
+                while cpu.memory.read(addr as u16) != b'$' {
+                    print!("{}", cpu.memory.read(addr as u16) as char);
+                    addr += 1;
+                }
+                io::stdout().flush().ok().expect("Could not flush stdout");
+            } else if cpu.registers.c == 2 {
+                print!("{}", cpu.registers.e as char);
+                io::stdout().flush().ok().expect("Could not flush stdout");
+            }
+        }
     }
 }
 
@@ -85,35 +83,20 @@ fn main() {
     cpu.memory.write(0x6, 0x01);
     cpu.memory.write(0x7, 0xC9);
 
-    let debug = false;
-    let mut i = 0;
-    const STEP_CYCLES: u16 = 16_667;
-    loop {
-        let mut cyc = 0;
-        while cyc < STEP_CYCLES {
-            let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
-        
-                // if i > 4917 {
-                //     println!("{:?} {:?}", i, instr);
-                // }
-            let (next_pc, cycles) = cpu.execute(
-                &instr,
-                &mut TestMachine {
-                    cpu: &mut cpu.clone(),
-                },
-            );
-            cpu.pc = next_pc;
-            cyc += cycles as u16;
-            if debug {
-                println!("{:?} {:?}", i, instr);
-                println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
-                println!("cycles: {}", cycles);
-                println!("{:#x?}", cpu.condition_codes);
-                println!("{:#x?}\n", cpu.registers);
-            }
-            i += 1;
-        }
-        std::thread::sleep(std::time::Duration::from_micros(16));
+    let debug = true;
 
+    loop {
+        let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
+
+        if debug {
+            println!("{:?}", instr);
+            println! {"pc: {:#x?}, sp: {:#x?},", cpu.pc, cpu.sp};
+            println!("flags: {:#x?}", cpu.condition_codes.flags_to_psw());
+            println!("{:#x?}\n", cpu.registers);
+        }
+
+        let (next_pc, _) = cpu.execute(&instr, &mut TestMachine);
+
+        cpu.pc = next_pc;
     }
 }
