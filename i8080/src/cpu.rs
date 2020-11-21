@@ -1,55 +1,64 @@
 use crate::condition_codes::ConditionCodes;
 use crate::instruction::{Instruction, Operand};
 use crate::machine::MachineIO;
+use crate::memory_bus::MemoryMap;
 use crate::registers::Registers;
 
 use std::process;
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub struct Cpu {
+pub struct Cpu<M>
+where
+    M: MemoryMap,
+{
     pub registers: Registers,
     pub sp: u16,
     pub pc: u16,
-    pub memory: [u8; 0xFFFF],
+    pub memory: M,
     pub condition_codes: ConditionCodes,
     pub interrupts_enabled: bool,
 }
 
-impl Cpu {
-    pub fn new() -> Self {
+impl<M> Cpu<M>
+where
+    M: MemoryMap,
+{
+    pub fn new(memory_map: M) -> Self {
         Cpu {
             registers: Registers::new(),
             sp: 0,
             pc: 0,
-            memory: [0; 0xFFFF],
+            memory: memory_map,
             condition_codes: Default::default(),
             interrupts_enabled: false,
         }
     }
 
-    pub fn step<M: MachineIO>(&mut self, machine: &mut M) -> u8 {
+    pub fn step<IO: MachineIO>(&mut self, machine: &mut IO, mut run_cycles: i32) {
         let debug = false;
 
-        let instr = Instruction::from(&self.memory[self.pc as usize..]);
-        let (next_pc, cycles) = self.execute(&instr, machine);
-        self.pc = next_pc;
+        while run_cycles >= 0 {
+            let instr = Instruction::from(self.memory.read_slice(self.pc));
+            let (next_pc, cycles) = self.execute(&instr, machine);
+            self.pc = next_pc;
 
-        if debug {
-            println!("{:?}", instr);
-            println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
-            println!("cycles: {}", cycles);
-            println!("{:#x?}", self.condition_codes);
-            println!("{:#x?}\n", self.registers);
+            if debug {
+                println!("{:?}", instr);
+                println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
+                println!("cycles: {}", cycles);
+                println!("{:#x?}", self.condition_codes);
+                println!("{:#x?}\n", self.registers);
+            }
+
+            run_cycles -= cycles as i32;
         }
-
-        cycles
     }
 
-    pub fn execute<M: MachineIO>(
+    pub fn execute<IO: MachineIO>(
         &mut self,
         instruction: &Instruction,
-        machine: &mut M,
+        machine: &mut IO,
     ) -> (u16, u8) {
         // Macro for unconditional instructions. This macro will call the
         // provided function name ($func) along with an address ($addr) if
@@ -124,7 +133,7 @@ impl Cpu {
                     Operand::E => self.registers.e,
                     Operand::H => self.registers.h,
                     Operand::L => self.registers.l,
-                    Operand::M => self.memory[self.registers.get_hl() as usize],
+                    Operand::M => self.memory.read(self.registers.get_hl()),
                     _ => panic!(
                         "{:#x?} only accepts registers or a memory location",
                         instruction
@@ -297,7 +306,10 @@ impl Cpu {
     }
 }
 
-impl Cpu {
+impl<M> Cpu<M>
+where
+    M: MemoryMap,
+{
     // Unconditionally jump to the provided address. See jump(&self, addr).
     // Condition bits affected: None
     fn jmp(&self, addr: u16) -> u16 {
@@ -497,13 +509,7 @@ impl Cpu {
     // return the new address the pc will be set to.
     // Condition bits affected: None
     fn call(&mut self, addr: u16) -> u16 {
-        let val = self.pc + 3;
-        //note: Moved some of the push() code here to help keep that function cleaner
-        //can be changed later if there are issues with it.
-        //self.push(pc);
-        self.memory[self.sp as usize - 1] = ((val & 0xFF00) >> 8) as u8;
-        self.memory[self.sp as usize - 2] = (val & 0xFF) as u8;
-        self.sp = self.sp.wrapping_sub(2);
+        self.push_stack(self.pc + 3);
         addr
     }
 
@@ -591,13 +597,7 @@ impl Cpu {
     // stack.
     // Condition bits affected: None
     fn ret(&mut self) -> u16 {
-        //note: Moved some of the push() code here to help keep that function cleaner
-        //can be changed later if there are issues with it.
-        //self.pop()
-        let res =
-            (self.memory[self.sp as usize + 1] as u16) << 8 | self.memory[self.sp as usize] as u16;
-        self.sp = self.sp.wrapping_add(2);
-        res
+        self.pop_stack()
     }
 
     // Restart instruction. Pushes the pc onto the stack and returns a return
@@ -613,27 +613,21 @@ impl Cpu {
     fn push(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
-                let res = self.registers.get_bc();
-                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
-                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
-                self.sp = self.sp.wrapping_sub(2);
+                let val = self.registers.get_bc();
+                self.push_stack(val);
             }
             Operand::D => {
-                let res = self.registers.get_de();
-                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
-                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
-                self.sp = self.sp.wrapping_sub(2);
+                let val = self.registers.get_de();
+                self.push_stack(val);
             }
             Operand::H => {
-                let res = self.registers.get_hl();
-                self.memory[self.sp as usize - 1] = ((res & 0xFF00) >> 8) as u8;
-                self.memory[self.sp as usize - 2] = (res & 0xFF) as u8;
-                self.sp = self.sp.wrapping_sub(2);
+                let val = self.registers.get_hl();
+                self.push_stack(val);
             }
             Operand::PSW => {
-                self.memory[self.sp as usize - 1] = self.registers.a;
-                self.memory[self.sp as usize - 2] = self.condition_codes.flags_to_psw();
-                self.sp = self.sp.wrapping_sub(2);
+                let val =
+                    (self.registers.a as u16) << 8 | self.condition_codes.flags_to_psw() as u16;
+                self.push_stack(val);
             }
             _ => {
                 //TODO: write error message later
@@ -648,32 +642,47 @@ impl Cpu {
     fn pop(&mut self, reg: Operand) {
         match reg {
             Operand::B => {
-                self.registers.c = self.memory[self.sp as usize];
-                self.registers.b = self.memory[self.sp as usize + 1];
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.set_bc(val);
             }
             Operand::D => {
-                self.registers.e = self.memory[self.sp as usize];
-                self.registers.d = self.memory[self.sp as usize + 1];
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.set_de(val);
             }
             Operand::H => {
-                self.registers.l = self.memory[self.sp as usize];
-                self.registers.h = self.memory[self.sp as usize + 1];
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.set_hl(val);
             }
             Operand::PSW => {
-                // self.registers.a = self.memory[self.sp as usize];
-                self.registers.a = self.memory[self.sp as usize + 1];
-                let res = self.memory[self.sp as usize];
-                self.condition_codes.psw_to_flags(res);
-                self.sp = self.sp.wrapping_add(2);
+                let val = self.pop_stack();
+                self.registers.a = (val >> 8) as u8;
+                let psw = (val & 0xFF) as u8;
+                self.condition_codes.psw_to_flags(psw);
             }
             _ => {
                 //TODO: write error message later
                 unimplemented!();
             }
         };
+    }
+
+    // The contents of the specified value is pushed onto the stack and the
+    // stack pointer is decremented by two.
+    fn push_stack(&mut self, val: u16) {
+        self.memory
+            .write(self.sp.wrapping_sub(1), ((val & 0xFF00) >> 8) as u8);
+        self.memory
+            .write(self.sp.wrapping_sub(2), (val & 0xFF) as u8);
+        self.sp = self.sp.wrapping_sub(2);
+    }
+
+    // The contents of the memory pointed at by the stack pointer is popped off
+    // the stack and the stack pointer is incremented by two.
+    fn pop_stack(&mut self) -> u16 {
+        let lo = self.memory.read(self.sp) as u16;
+        let hi = self.memory.read(self.sp + 1) as u16;
+        self.sp = self.sp.wrapping_add(2);
+        hi << 8 | lo
     }
 
     // Double Add. The 16-bit number in the specified register pair is added to the
@@ -777,17 +786,15 @@ impl Cpu {
         process::exit(1);
     }
 
-    // IN: Input (in is a reserved keyword so 'fn input' is used instead)
     // An eight-bit data byte is read from input device number exp and replaces
     // the contents of the accumulator
-    fn input<M: MachineIO>(&mut self, machine: &mut M, port: u8) {
-        machine.machine_in(port);
+    fn input<IO: MachineIO>(&mut self, machine: &mut IO, port: u8) {
+        self.registers.a = machine.machine_in(port);
     }
 
-    // OUT: Output (changed to 'fn output' to match 'input')
     // The contents of the accumulator are sent to output device number exp
-    fn output<M: MachineIO>(&mut self, machine: &mut M, port: u8) {
-        machine.machine_out(port, self.registers.a);
+    fn output<IO: MachineIO>(&mut self, machine: &mut IO, port: u8) {
+        machine.machine_out(self, port, self.registers.a);
     }
 
     // Enable Interrupts
@@ -805,9 +812,7 @@ impl Cpu {
     pub fn interrupt(&mut self, addr: u16) {
         if self.interrupts_enabled {
             self.interrupts_enabled = false;
-            self.memory[self.sp.wrapping_sub(1) as usize] = ((self.pc & 0xFF00) >> 8) as u8;
-            self.memory[self.sp.wrapping_sub(2) as usize] = (self.pc & 0xFF) as u8;
-            self.sp = self.sp.wrapping_sub(2);
+            self.push_stack(self.pc);
             self.pc = addr;
         }
     }
@@ -826,10 +831,10 @@ impl Cpu {
         let tmp_h = self.registers.h;
         let tmp_l = self.registers.l;
 
-        self.registers.h = self.memory[self.sp as usize + 1];
-        self.registers.l = self.memory[self.sp as usize];
-        self.memory[self.sp as usize] = tmp_l;
-        self.memory[self.sp as usize + 1] = tmp_h;
+        self.registers.h = self.memory.read(self.sp + 1);
+        self.registers.l = self.memory.read(self.sp);
+        self.memory.write(self.sp, tmp_l);
+        self.memory.write(self.sp + 1, tmp_h);
     }
 
     //fn rim(&self) {
@@ -894,7 +899,7 @@ impl Cpu {
     fn and(&mut self, val: u8) {
         // The 8080 logical AND instructions set the flag to reflect the
         // logical OR of bit 3 of the values involved in the AND operation.
-        let aux_carry = ((self.registers.a | val) & 0x8) == 0x8;
+        let aux_carry = ((self.registers.a | val) & 0x8) != 0;
         self.registers.a &= val;
 
         self.condition_codes.reset_carry();
@@ -946,12 +951,12 @@ impl Cpu {
 
         self.condition_codes.set_carry(self.registers.a < val);
         self.condition_codes.set_zero(val);
-        self.condition_codes.set_sign(self.registers.a);
-        self.condition_codes.set_parity(self.registers.a);
+        self.condition_codes.set_sign(val);
+        self.condition_codes.set_parity(val);
         // Set aux_carry if the lower nibble of the accumulator is less than
         // the lower nibble of the value after subtraction.
         self.condition_codes
-            .set_aux_carry((self.registers.a & 0xF) < (val & 0xF));
+            .set_aux_carry((self.registers.a as i8 & 0xF) - (val as i8 & 0xF) >= 0);
     }
 
     // Rotate the accumulator left. The Carry bit is set equal to the
@@ -960,8 +965,7 @@ impl Cpu {
     // transferred to the low-order bit position of the accumulator.
     // Condition bits affected: Carry
     fn rlc(&mut self) {
-        let carry = (self.registers.a & 0x80) >> 7;
-        self.registers.a = self.registers.a << 1 | carry;
+        self.registers.a = self.registers.a.rotate_left(1);
         self.condition_codes.carry = (self.registers.a & 0x1) > 0;
     }
 
@@ -971,8 +975,7 @@ impl Cpu {
     // transferred to the high-order bit position of the accumulator.
     // Condition bits affected: Carry
     fn rrc(&mut self) {
-        let carry = (self.registers.a & 0x1) << 7;
-        self.registers.a = self.registers.a >> 1 | carry;
+        self.registers.a = self.registers.a.rotate_right(1);
         self.condition_codes.carry = (self.registers.a & 0x80) > 0;
     }
 
@@ -1024,32 +1027,30 @@ impl Cpu {
     // two four-bit binary encoded digits.
     // Condition bits affected: Zero, Sign, Parity, Carry, Auxiliary Carry
     fn daa(&mut self) {
+        let mut val = 0;
+        let mut carry = self.condition_codes.carry;
+
+        let lsb = self.registers.a & 0x0F;
+        let msb = self.registers.a >> 4;
+
         // If the least significant four bits of the accumulator represents a
         // number greater than 9, or if the Auxiliary Carry bit is equal to
         // one, the accumulator is incremented by six. Otherwise, no
-        // incrementing occurs. If a carry out of the least significant four
-        // bits occurs, the Auxiliary Carry bit is set; otherwise it is reset.
-        if (self.registers.a & 0x0F > 0x9) || self.condition_codes.aux_carry {
-            let high_bit = self.registers.a & 0x8;
-            self.registers.a = self.registers.a.wrapping_add(0x6);
-            self.condition_codes.aux_carry = (self.registers.a & 0x8) < high_bit;
+        // incrementing occurs.
+        if (lsb > 0x9) || self.condition_codes.aux_carry {
+            val += 0x6;
         }
         // If the most significant four bits of the accumulator now represent a
         // number greater than 9, or if the normal carry bit is equal to one,
         // the most significant four bits of the accumulator are incremented
-        // by six. Otherwise, no incrementing occurs. If a carry out of the
-        // most significant four bits occurs. the Carry bit is set; otherwise,
-        // it is unaffected.
-        if (self.registers.a & 0xF0 > 0x90) || self.condition_codes.carry {
-            let high_bit = (self.registers.a >> 4) & 0x8;
-            self.registers.a = self.registers.a.wrapping_add(0x60);
-            if ((self.registers.a >> 4) & 0x8) < high_bit {
-                self.condition_codes.set_carry(true);
-            }
+        // by six. Otherwise, no incrementing occurs.
+        if (msb > 0x9) || self.condition_codes.carry || (msb >= 9 && lsb > 9) {
+            val += 0x60;
+            carry = true;
         }
-        self.condition_codes.set_zero(self.registers.a);
-        self.condition_codes.set_sign(self.registers.a);
-        self.condition_codes.set_parity(self.registers.a);
+
+        self.add(val);
+        self.condition_codes.set_carry(carry);
     }
 
     // The specified byte is added to the contents of the accumulator.
@@ -1100,9 +1101,10 @@ impl Cpu {
                 self.registers.l
             }
             Operand::M => {
-                let hl = self.registers.get_hl() as usize;
-                self.memory[hl] = self.memory[hl].wrapping_add(1);
-                self.memory[hl]
+                let hl = self.registers.get_hl();
+                let val = self.memory.read(hl).wrapping_add(1);
+                self.memory.write(hl, val);
+                self.memory.read(hl)
             }
             _ => panic!("INR only accepts registers or a memory location"),
         };
@@ -1146,18 +1148,18 @@ impl Cpu {
                 self.registers.l
             }
             Operand::M => {
-                let location = self.registers.get_hl() as usize;
-                self.memory[location] = self.memory[location].wrapping_sub(1);
-                self.memory[location]
+                let hl = self.registers.get_hl();
+                let val = self.memory.read(hl).wrapping_sub(1);
+                self.memory.write(hl, val);
+                self.memory.read(hl)
             }
             _ => panic!("DCR only accepts registers or a memory location"),
         };
         // update flags
-        self.condition_codes.reset_carry();
         self.condition_codes.set_zero(res);
         self.condition_codes.set_sign(res);
         self.condition_codes.set_parity(res);
-        self.condition_codes.set_aux_carry((res & 0xF) == 0xF);
+        self.condition_codes.set_aux_carry((res & 0xF) != 0xF);
     }
 
     // The specified byte plus the content of the Carry bit is added to the contents
@@ -1169,15 +1171,15 @@ impl Cpu {
         let res = (reg_a as u16)
             .wrapping_add(val as u16)
             .wrapping_add(carry as u16);
-        // put result in accumulator
-        self.registers.a = res as u8;
-        // update flags
+
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(res > 0xFF);
+        self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
-            .set_aux_carry((reg_a & 0xF) + (val & 0xF) + (carry & 0xF) > 0xF);
+            .set_aux_carry((reg_a & 0xF) + (val & 0xF) + (carry) > 0xF);
+
+        self.registers.a = res as u8;
     }
 
     // The specified byte is subtracted from the accumulator. If there is no carry
@@ -1193,7 +1195,7 @@ impl Cpu {
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
             .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) >= 0);
     }
@@ -1202,20 +1204,18 @@ impl Cpu {
     // value is then subtracted from the accumulator.
     // Condition bits affected: Carry, Zero, Sign, Parity, Auxiliary Carry
     fn sbb(&mut self, val: u8) {
-        let reg_a = self.registers.a;
-        let borrow: u8 = if self.condition_codes.carry { 1 } else { 0 };
-        let res: u16 = (reg_a as u16)
-            .wrapping_sub(val as u16)
-            .wrapping_sub(borrow as u16);
-        // put result in accumulator
-        self.registers.a = res as u8;
-        // update flags
+        let reg_a = self.registers.a as u16;
+        let borrow: u16 = if self.condition_codes.carry { 1 } else { 0 };
+        let res: u16 = (reg_a).wrapping_sub(val as u16).wrapping_sub(borrow);
+
         self.condition_codes.set_zero(res as u8);
         self.condition_codes.set_sign(res as u8);
         self.condition_codes.set_parity(res as u8);
-        self.condition_codes.set_carry(reg_a < val);
+        self.condition_codes.set_carry((res & 0x0100) != 0);
         self.condition_codes
-            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & (0xF - (borrow as i8))) >= 0);
+            .set_aux_carry((reg_a as i8 & 0xF) - (val as i8 & 0xF) - (borrow as i8) >= 0);
+
+        self.registers.a = res as u8;
     }
 
     // The byte of immediate data is added to the contents of the accumulator.
@@ -1256,7 +1256,7 @@ impl Cpu {
             Operand::E => self.registers.e,
             Operand::H => self.registers.h,
             Operand::L => self.registers.l,
-            Operand::M => self.memory[self.registers.get_hl() as usize],
+            Operand::M => self.memory.read(self.registers.get_hl()),
             _ => panic!("MOV only accepts registers or a memory location",),
         };
 
@@ -1268,7 +1268,7 @@ impl Cpu {
             Operand::E => self.registers.e = src,
             Operand::H => self.registers.h = src,
             Operand::L => self.registers.l = src,
-            Operand::M => self.memory[self.registers.get_hl() as usize] = src,
+            Operand::M => self.memory.write(self.registers.get_hl(), src),
             _ => panic!("MOV only accepts registers or a memory location",),
         }
     }
@@ -1285,7 +1285,7 @@ impl Cpu {
             Operand::E => self.registers.e = val,
             Operand::H => self.registers.h = val,
             Operand::L => self.registers.l = val,
-            Operand::M => self.memory[self.registers.get_hl() as usize] = val,
+            Operand::M => self.memory.write(self.registers.get_hl(), val),
             _ => panic!("MVI only accepts registers or a memory location",),
         }
     }
@@ -1314,8 +1314,8 @@ impl Cpu {
     // Condition bits affected: None
     fn stax(&mut self, reg: Operand) {
         match reg {
-            Operand::B => self.memory[self.registers.get_bc() as usize] = self.registers.a,
-            Operand::D => self.memory[self.registers.get_de() as usize] = self.registers.a,
+            Operand::B => self.memory.write(self.registers.get_bc(), self.registers.a),
+            Operand::D => self.memory.write(self.registers.get_de(), self.registers.a),
             _ => panic!("STAX only accepts B and D as operands",),
         }
     }
@@ -1325,8 +1325,8 @@ impl Cpu {
     // Condition bits affected: None
     fn ldax(&mut self, reg: Operand) {
         match reg {
-            Operand::B => self.registers.a = self.memory[self.registers.get_bc() as usize],
-            Operand::D => self.registers.a = self.memory[self.registers.get_de() as usize],
+            Operand::B => self.registers.a = self.memory.read(self.registers.get_bc()),
+            Operand::D => self.registers.a = self.memory.read(self.registers.get_de()),
             _ => panic!("LDAX only accepts B and D as operands",),
         }
     }
@@ -1334,29 +1334,29 @@ impl Cpu {
     // The contents of the accumulator replace the byte at the memory address given
     // Condition bits affected: None
     fn sta(&mut self, addr: u16) {
-        self.memory[addr as usize] = self.registers.a;
+        self.memory.write(addr, self.registers.a);
     }
 
     // The contents at the memory address given replaces the contents of the accumulator
     // Condition bits affected: None
     fn lda(&mut self, addr: u16) {
-        self.registers.a = self.memory[addr as usize];
+        self.registers.a = self.memory.read(addr);
     }
 
     // The contents of the L register are stored at the memory address given and the
     // contents of the H register are stored at the next higher memory address.
     // Condition bits affected: None
     fn shld(&mut self, addr: u16) {
-        self.memory[addr as usize] = self.registers.l;
-        self.memory[(addr as usize).wrapping_add(1)] = self.registers.h;
+        self.memory.write(addr, self.registers.l);
+        self.memory.write(addr.wrapping_add(1), self.registers.h);
     }
 
     // The byte at the memory address formed replaces the contents of the L register.
     // The byte at the next higher memory address replaces the contents of the H register.
     // Condition bits affected: None
     fn lhld(&mut self, addr: u16) {
-        self.registers.l = self.memory[addr as usize];
-        self.registers.h = self.memory[(addr as usize).wrapping_add(1)];
+        self.registers.l = self.memory.read(addr);
+        self.registers.h = self.memory.read(addr.wrapping_add(1));
     }
 
     // The 16 bits of data held in the H and L registers are exchanged with the 16 bits
@@ -1373,6 +1373,34 @@ impl Cpu {
 mod tests {
     use super::*;
 
+    struct MockMemory {
+        pub memory: [u8; 0xFFFF],
+    }
+
+    impl MockMemory {
+        fn new() -> Self {
+            Self {
+                memory: [0; 0xFFFF],
+            }
+        }
+    }
+
+    impl MemoryMap for MockMemory {
+        fn load_rom(_: &mut [u8]) {}
+
+        fn read(&mut self, addr: u16) -> u8 {
+            self.memory[addr as usize]
+        }
+
+        fn read_slice(&mut self, addr: u16) -> &[u8] {
+            &self.memory[addr as usize..]
+        }
+
+        fn write(&mut self, addr: u16, val: u8) {
+            self.memory[addr as usize] = val;
+        }
+    }
+
     struct MockMachine;
 
     impl MachineIO for MockMachine {
@@ -1380,12 +1408,12 @@ mod tests {
             0
         }
 
-        fn machine_out(&mut self, _: u8, _: u8) {}
+        fn machine_out<M: MemoryMap>(&mut self, _: &mut Cpu<M>, _: u8, _: u8) {}
     }
 
     #[test]
     fn test_nop() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::NOP;
         let (_, cycles) = cpu.execute(&instr, &mut MockMachine);
         assert_eq!(cycles, Instruction::NOP.cycles());
@@ -1393,14 +1421,14 @@ mod tests {
 
     #[test]
     fn test_jmp() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let (next_pc, _) = cpu.execute(&Instruction::JMP(0x10FF), &mut MockMachine);
         assert_eq!(next_pc, 0x10FF);
     }
 
     #[test]
     fn test_jc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JC(0x10FF);
         cpu.condition_codes.carry = false;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1412,7 +1440,7 @@ mod tests {
 
     #[test]
     fn test_jnc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JNC(0x10FF);
         cpu.condition_codes.carry = true;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1424,7 +1452,7 @@ mod tests {
 
     #[test]
     fn test_jz() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JZ(0x10FF);
         cpu.condition_codes.zero = false;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1436,7 +1464,7 @@ mod tests {
 
     #[test]
     fn test_jnz() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JNZ(0x10FF);
         cpu.condition_codes.zero = true;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1448,7 +1476,7 @@ mod tests {
 
     #[test]
     fn test_jp() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JP(0x10FF);
         cpu.condition_codes.sign = true;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1460,7 +1488,7 @@ mod tests {
 
     #[test]
     fn test_jm() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JM(0x10FF);
         cpu.condition_codes.sign = false;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1472,7 +1500,7 @@ mod tests {
 
     #[test]
     fn test_jpe() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JPE(0x10FF);
         cpu.condition_codes.parity = false;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1484,7 +1512,7 @@ mod tests {
 
     #[test]
     fn test_jpo() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::JPO(0x10FF);
         cpu.condition_codes.parity = true;
         let (next_pc, _) = cpu.execute(&instr, &mut MockMachine);
@@ -1496,7 +1524,7 @@ mod tests {
 
     #[test]
     fn test_pchl() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.h = 0x1;
         cpu.registers.l = 0x2;
         let (next_pc, _) = cpu.execute(&Instruction::PCHL, &mut MockMachine);
@@ -1505,7 +1533,7 @@ mod tests {
 
     #[test]
     fn test_call() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         let (pc, _) = cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
@@ -1515,7 +1543,7 @@ mod tests {
 
     #[test]
     fn test_cc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = false;
@@ -1533,7 +1561,7 @@ mod tests {
 
     #[test]
     fn test_cnc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = true;
@@ -1551,7 +1579,7 @@ mod tests {
 
     #[test]
     fn test_cz() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = false;
@@ -1569,7 +1597,7 @@ mod tests {
 
     #[test]
     fn test_cnz() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = true;
@@ -1587,7 +1615,7 @@ mod tests {
 
     #[test]
     fn test_cp() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = true;
@@ -1605,7 +1633,7 @@ mod tests {
 
     #[test]
     fn test_cm() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = false;
@@ -1623,7 +1651,7 @@ mod tests {
 
     #[test]
     fn test_cpe() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = false;
@@ -1641,7 +1669,7 @@ mod tests {
 
     #[test]
     fn test_cpo() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = true;
@@ -1659,7 +1687,7 @@ mod tests {
 
     #[test]
     fn test_ret() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.execute(&Instruction::CALL(0x1E6), &mut MockMachine);
@@ -1670,7 +1698,7 @@ mod tests {
 
     #[test]
     fn test_rc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = false;
@@ -1690,7 +1718,7 @@ mod tests {
 
     #[test]
     fn test_rnc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.carry = true;
@@ -1710,7 +1738,7 @@ mod tests {
 
     #[test]
     fn test_rz() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = false;
@@ -1730,7 +1758,7 @@ mod tests {
 
     #[test]
     fn test_rnz() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.zero = true;
@@ -1750,7 +1778,7 @@ mod tests {
 
     #[test]
     fn test_rp() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = true;
@@ -1770,7 +1798,7 @@ mod tests {
 
     #[test]
     fn test_rm() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.sign = false;
@@ -1790,7 +1818,7 @@ mod tests {
 
     #[test]
     fn test_rpe() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = false;
@@ -1810,7 +1838,7 @@ mod tests {
 
     #[test]
     fn test_rpo() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.pc = 0x18D9;
         cpu.sp = 0x2400;
         cpu.condition_codes.parity = true;
@@ -1830,7 +1858,7 @@ mod tests {
 
     #[test]
     fn test_ana() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xFC;
         cpu.registers.b = 0xF;
         cpu.execute(&Instruction::ANA(Operand::B), &mut MockMachine);
@@ -1844,7 +1872,7 @@ mod tests {
 
     #[test]
     fn test_xra() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xFC;
         cpu.registers.b = 0x1;
         cpu.execute(&Instruction::XRA(Operand::B), &mut MockMachine);
@@ -1858,7 +1886,7 @@ mod tests {
 
     #[test]
     fn test_ora() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x33;
         cpu.registers.b = 0xF;
         cpu.execute(&Instruction::ORA(Operand::B), &mut MockMachine);
@@ -1872,7 +1900,7 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xA;
         cpu.registers.b = 0x5;
         cpu.execute(&Instruction::CMP(Operand::B), &mut MockMachine);
@@ -1882,7 +1910,7 @@ mod tests {
         assert_eq!(cpu.condition_codes.sign, false);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, true);
-        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
 
         cpu.registers.a = 0x2;
         cpu.registers.b = 0x5;
@@ -1890,15 +1918,15 @@ mod tests {
         assert_eq!(cpu.registers.a, 0x2);
         assert_eq!(cpu.registers.b, 0x5);
         assert_eq!(cpu.condition_codes.carry, true);
-        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.sign, true);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, false);
-        assert_eq!(cpu.condition_codes.aux_carry, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
     }
 
     #[test]
     fn test_ani() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x3A;
         cpu.execute(&Instruction::ANI(0xF), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xA);
@@ -1911,7 +1939,7 @@ mod tests {
 
     #[test]
     fn test_xri() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x3B;
         cpu.execute(&Instruction::XRI(0x81), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xBA);
@@ -1924,7 +1952,7 @@ mod tests {
 
     #[test]
     fn test_ori() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xB5;
         cpu.execute(&Instruction::ORI(0xF), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xBF);
@@ -1937,29 +1965,29 @@ mod tests {
 
     #[test]
     fn test_cpi() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x4A;
         cpu.execute(&Instruction::CPI(0x40), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x4A);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
         assert_eq!(cpu.condition_codes.zero, false);
-        assert_eq!(cpu.condition_codes.parity, false);
-        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.parity, true);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
 
         cpu.registers.a = 0x2;
         cpu.execute(&Instruction::CPI(0x40), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x2);
         assert_eq!(cpu.condition_codes.carry, true);
-        assert_eq!(cpu.condition_codes.sign, false);
+        assert_eq!(cpu.condition_codes.sign, true);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, false);
-        assert_eq!(cpu.condition_codes.aux_carry, false);
+        assert_eq!(cpu.condition_codes.aux_carry, true);
     }
 
     #[test]
     fn test_rlc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xF2;
         cpu.execute(&Instruction::RLC, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xE5);
@@ -1968,7 +1996,7 @@ mod tests {
 
     #[test]
     fn test_rrc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xF2;
         cpu.execute(&Instruction::RRC, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x79);
@@ -1977,7 +2005,7 @@ mod tests {
 
     #[test]
     fn test_ral() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xB5;
         cpu.execute(&Instruction::RAL, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x6A);
@@ -1986,7 +2014,7 @@ mod tests {
 
     #[test]
     fn test_rar() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x6A;
         cpu.condition_codes.carry = true;
         cpu.execute(&Instruction::RAR, &mut MockMachine);
@@ -1996,7 +2024,7 @@ mod tests {
 
     #[test]
     fn test_cma() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x51;
         cpu.execute(&Instruction::CMA, &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xAE);
@@ -2004,14 +2032,14 @@ mod tests {
 
     #[test]
     fn test_stc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.execute(&Instruction::STC, &mut MockMachine);
         assert_eq!(cpu.condition_codes.carry, true);
     }
 
     #[test]
     fn test_cmc() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         let instr = Instruction::CMC;
         cpu.condition_codes.carry = false;
         cpu.execute(&instr, &mut MockMachine);
@@ -2023,7 +2051,7 @@ mod tests {
 
     #[test]
     fn test_daa() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x9B;
         cpu.condition_codes.carry = false;
         cpu.condition_codes.aux_carry = false;
@@ -2035,7 +2063,7 @@ mod tests {
 
     #[test]
     fn test_inx() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.d = 0x38;
         cpu.registers.e = 0xFF;
         cpu.execute(&Instruction::INX(Operand::D), &mut MockMachine);
@@ -2048,7 +2076,7 @@ mod tests {
 
     #[test]
     fn test_dcx() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.h = 0x98;
         cpu.registers.l = 0x00;
         cpu.execute(&Instruction::DCX(Operand::H), &mut MockMachine);
@@ -2058,7 +2086,7 @@ mod tests {
 
     #[test]
     fn test_dad() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.b = 0x33;
         cpu.registers.c = 0x9F;
         cpu.registers.h = 0xA1;
@@ -2072,13 +2100,13 @@ mod tests {
 
     #[test]
     fn test_push() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.d = 0x8F;
         cpu.registers.e = 0x9D;
         cpu.sp = 0x3A2C;
         cpu.execute(&Instruction::PUSH(Operand::D), &mut MockMachine);
-        assert_eq!(cpu.memory[0x3A2B], 0x8F);
-        assert_eq!(cpu.memory[0x3A2A], 0x9D);
+        assert_eq!(cpu.memory.read(0x3A2B), 0x8F);
+        assert_eq!(cpu.memory.read(0x3A2A), 0x9D);
         assert_eq!(cpu.sp, 0x3A2A);
 
         //PUSH PSW
@@ -2091,16 +2119,16 @@ mod tests {
         cpu.condition_codes.aux_carry = false;
 
         cpu.execute(&Instruction::PUSH(Operand::PSW), &mut MockMachine);
-        assert_eq!(cpu.memory[0x5029], 0x1F);
-        assert_eq!(cpu.memory[0x5028], 0x47);
+        assert_eq!(cpu.memory.read(0x5029), 0x1F);
+        assert_eq!(cpu.memory.read(0x5028), 0x47);
         assert_eq!(cpu.sp, 0x5028);
     }
 
     #[test]
     fn test_pop() {
-        let mut cpu = Cpu::new();
-        cpu.memory[0x1239] = 0x3D;
-        cpu.memory[0x123A] = 0x93;
+        let mut cpu = Cpu::new(MockMemory::new());
+        cpu.memory.write(0x1239, 0x3D);
+        cpu.memory.write(0x123A, 0x93);
         cpu.sp = 0x1239;
         cpu.execute(&Instruction::POP(Operand::H), &mut MockMachine);
         assert_eq!(cpu.registers.l, 0x3D);
@@ -2108,8 +2136,8 @@ mod tests {
         assert_eq!(cpu.sp, 0x123B);
 
         //POP PSW
-        cpu.memory[0x2C00] = 0xC3;
-        cpu.memory[0x2C01] = 0xFF;
+        cpu.memory.write(0x2C00, 0xC3);
+        cpu.memory.write(0x2C01, 0xFF);
         cpu.sp = 0x2C00;
         cpu.execute(&Instruction::POP(Operand::PSW), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xFF);
@@ -2122,7 +2150,7 @@ mod tests {
 
     #[test]
     fn test_ei() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.interrupts_enabled = false;
         cpu.execute(&Instruction::EI, &mut MockMachine);
         assert_eq!(cpu.interrupts_enabled, true);
@@ -2130,7 +2158,7 @@ mod tests {
 
     #[test]
     fn test_di() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.interrupts_enabled = true;
         cpu.execute(&Instruction::DI, &mut MockMachine);
         assert_eq!(cpu.interrupts_enabled, false);
@@ -2138,7 +2166,7 @@ mod tests {
 
     #[test]
     fn test_sphl() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.h = 0x50;
         cpu.registers.l = 0x6C;
         cpu.execute(&Instruction::SPHL, &mut MockMachine);
@@ -2147,17 +2175,17 @@ mod tests {
 
     #[test]
     fn test_xthl() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.sp = 0x10AD;
         cpu.registers.h = 0x0B;
         cpu.registers.l = 0x3C;
-        cpu.memory[0x10AD] = 0xF0;
-        cpu.memory[0x10AE] = 0x0D;
+        cpu.memory.write(0x10AD, 0xF0);
+        cpu.memory.write(0x10AE, 0x0D);
         cpu.execute(&Instruction::XTHL, &mut MockMachine);
         assert_eq!(cpu.registers.h, 0x0D);
         assert_eq!(cpu.registers.l, 0xF0);
-        assert_eq!(cpu.memory[0x10AD], 0x3C);
-        assert_eq!(cpu.memory[0x10AE], 0x0B);
+        assert_eq!(cpu.memory.read(0x10AD), 0x3C);
+        assert_eq!(cpu.memory.read(0x10AE), 0x0B);
     }
 
     //TODO: main function not yet implemented
@@ -2184,7 +2212,7 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x6C;
         cpu.registers.d = 0x2E;
         cpu.execute(&Instruction::ADD(Operand::D), &mut MockMachine);
@@ -2200,7 +2228,7 @@ mod tests {
     #[test]
     fn test_adc() {
         // carry bit not set
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x42;
         cpu.registers.c = 0x3D;
         cpu.condition_codes.carry = false;
@@ -2229,7 +2257,7 @@ mod tests {
 
     #[test]
     fn test_sub() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x3E;
         cpu.execute(&Instruction::SUB(Operand::A), &mut MockMachine);
 
@@ -2243,7 +2271,7 @@ mod tests {
 
     #[test]
     fn test_sbb() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x4;
         cpu.registers.l = 0x2;
         cpu.condition_codes.carry = true;
@@ -2259,7 +2287,7 @@ mod tests {
 
     #[test]
     fn test_inr() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x99;
         cpu.execute(&Instruction::INR(Operand::A), &mut MockMachine);
 
@@ -2273,23 +2301,23 @@ mod tests {
 
     #[test]
     fn test_dcr() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.h = 0x3A;
         cpu.registers.l = 0x7C;
-        cpu.memory[0x3A7C] = 0x40;
+        cpu.memory.write(0x3A7C, 0x40);
         cpu.execute(&Instruction::DCR(Operand::M), &mut MockMachine);
 
-        assert_eq!(cpu.memory[0x3A7C], 0x3F);
+        assert_eq!(cpu.memory.read(0x3A7C), 0x3F);
         assert_eq!(cpu.condition_codes.carry, false);
         assert_eq!(cpu.condition_codes.sign, false);
         assert_eq!(cpu.condition_codes.zero, false);
         assert_eq!(cpu.condition_codes.parity, true);
-        assert_eq!(cpu.condition_codes.aux_carry, true);
+        assert_eq!(cpu.condition_codes.aux_carry, false);
     }
 
     #[test]
     fn test_mov() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0;
         cpu.registers.e = 0x2B;
         cpu.execute(&Instruction::MOV(Operand::A, Operand::E), &mut MockMachine);
@@ -2300,7 +2328,7 @@ mod tests {
         cpu.registers.h = 0x2B;
         cpu.registers.l = 0xE9;
         cpu.execute(&Instruction::MOV(Operand::M, Operand::A), &mut MockMachine);
-        assert_eq!(cpu.memory[0x2BE9], 0x5A);
+        assert_eq!(cpu.memory.read(0x2BE9), 0x5A);
         assert_eq!(cpu.registers.a, 0x5A);
         assert_eq!(cpu.registers.h, 0x2B);
         assert_eq!(cpu.registers.l, 0xE9);
@@ -2308,7 +2336,7 @@ mod tests {
 
     #[test]
     fn test_mvi() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         assert_eq!(cpu.registers.b, 0);
         cpu.execute(&Instruction::MVI(Operand::B, 0x3C), &mut MockMachine);
         assert_eq!(cpu.registers.b, 0x3C);
@@ -2316,7 +2344,7 @@ mod tests {
 
     #[test]
     fn test_lxi() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.execute(&Instruction::LXI(Operand::H, 0x103), &mut MockMachine);
         assert_eq!(cpu.registers.h, 0x1);
         assert_eq!(cpu.registers.l, 0x3);
@@ -2324,55 +2352,55 @@ mod tests {
 
     #[test]
     fn test_stax() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0x5C;
         cpu.registers.b = 0x3F;
         cpu.registers.c = 0x16;
         cpu.execute(&Instruction::STAX(Operand::B), &mut MockMachine);
-        assert_eq!(cpu.memory[0x3F16], 0x5C);
+        assert_eq!(cpu.memory.read(0x3F16), 0x5C);
     }
 
     #[test]
     fn test_ldax() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.d = 0x93;
         cpu.registers.e = 0x8B;
-        cpu.memory[0x938B] = 0x5C;
+        cpu.memory.write(0x938B, 0x5C);
         cpu.execute(&Instruction::LDAX(Operand::D), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0x5C);
     }
 
     #[test]
     fn test_sta() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.a = 0xFF;
         cpu.execute(&Instruction::STA(0x5B3), &mut MockMachine);
-        assert_eq!(cpu.memory[0x5b3], 0xFF);
+        assert_eq!(cpu.memory.read(0x5b3), 0xFF);
     }
 
     #[test]
     fn test_lda() {
-        let mut cpu = Cpu::new();
-        cpu.memory[0x300] = 0xB;
+        let mut cpu = Cpu::new(MockMemory::new());
+        cpu.memory.write(0x300, 0xB);
         cpu.execute(&Instruction::LDA(0x300), &mut MockMachine);
         assert_eq!(cpu.registers.a, 0xB);
     }
 
     #[test]
     fn test_shld() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.h = 0xAE;
         cpu.registers.l = 0x29;
         cpu.execute(&Instruction::SHLD(0x10A), &mut MockMachine);
-        assert_eq!(cpu.memory[0x10A], 0x29);
-        assert_eq!(cpu.memory[0x10B], 0xAE);
+        assert_eq!(cpu.memory.read(0x10A), 0x29);
+        assert_eq!(cpu.memory.read(0x10B), 0xAE);
     }
 
     #[test]
     fn test_lhld() {
-        let mut cpu = Cpu::new();
-        cpu.memory[0x25B] = 0xFF;
-        cpu.memory[0x25C] = 0x3;
+        let mut cpu = Cpu::new(MockMemory::new());
+        cpu.memory.write(0x25B, 0xFF);
+        cpu.memory.write(0x25C, 0x3);
         cpu.execute(&Instruction::LHLD(0x25B), &mut MockMachine);
         assert_eq!(cpu.registers.l, 0xFF);
         assert_eq!(cpu.registers.h, 0x3);
@@ -2380,7 +2408,7 @@ mod tests {
 
     #[test]
     fn test_xchg() {
-        let mut cpu = Cpu::new();
+        let mut cpu = Cpu::new(MockMemory::new());
         cpu.registers.d = 0x33;
         cpu.registers.e = 0x55;
         cpu.registers.h = 0x0;

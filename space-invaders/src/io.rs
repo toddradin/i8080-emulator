@@ -1,22 +1,28 @@
+use i8080::cpu::Cpu;
 use i8080::machine::MachineIO;
+use i8080::memory_bus::MemoryMap;
 
 bitflags! {
-    pub struct Key: u16 {
+    pub struct Key: u8 {
         const CREDIT = 1 << 0;
         const START2P = 1 << 1;
         const START1P = 1 << 2;
-        const SHOOT1P = 1 << 3;
-        const LEFT1P = 1 << 4;
-        const RIGHT1P = 1 << 5;
-        const SHOOT2P = 1 << 6;
-        const LEFT2P = 1 << 7;
-        const RIGHT2P = 1 << 8;
+        const SHOOT1P = 1 << 4;
+        const LEFT1P = 1 << 5;
+        const RIGHT1P = 1 << 6;
+        const SHOOT2P = 1 << 4;
+        const LEFT2P = 1 << 5;
+        const RIGHT2P = 1 << 6;
     }
+}
+pub enum ControllerPort {
+    P1,
+    P2,
 }
 
 pub struct SpaceInvadersIO {
-    keyboard: Key,
-    port: u8,
+    first_port: u8,
+    second_port: u8,
     shift0: u8,
     shift1: u8,
     shift_offset: u8,
@@ -25,8 +31,8 @@ pub struct SpaceInvadersIO {
 impl SpaceInvadersIO {
     pub fn new() -> SpaceInvadersIO {
         SpaceInvadersIO {
-            keyboard: Key::empty(),
-            port: 0,
+            first_port: 1,
+            second_port: 0,
             shift0: 0,
             shift1: 0,
             shift_offset: 0,
@@ -38,8 +44,8 @@ impl MachineIO for SpaceInvadersIO {
     fn machine_in(&mut self, port: u8) -> u8 {
         match port {
             0 => 0x0F,
-            1 => self.port,
-            2 => 0,
+            1 => self.first_port,
+            2 => self.second_port,
             3 => {
                 let val = ((self.shift1 as u16) << 8) | self.shift0 as u16;
                 ((val >> (8 - self.shift_offset)) & 0xFF) as u8
@@ -48,7 +54,7 @@ impl MachineIO for SpaceInvadersIO {
         }
     }
 
-    fn machine_out(&mut self, port: u8, val: u8) {
+    fn machine_out<M: MemoryMap>(&mut self, _: &mut Cpu<M>, port: u8, val: u8) {
         match port {
             2 => self.shift_offset = val & 0x7,
             3 => {
@@ -70,13 +76,17 @@ impl MachineIO for SpaceInvadersIO {
 }
 
 impl SpaceInvadersIO {
-    pub fn press(&mut self, key: Key) {
-        println!("press() {:?}", self.keyboard);
-        self.keyboard.insert(key);
+    pub fn press(&mut self, key: Key, port: ControllerPort) {
+        match port {
+            ControllerPort::P1 => self.first_port |= key.bits(),
+            ControllerPort::P2 => self.second_port |= key.bits(),
+        }
     }
 
-    pub fn release(&mut self, key: Key) {
-        println!("release() {:?}", self.keyboard);
-        self.keyboard.remove(key);
+    pub fn release(&mut self, key: Key, port: ControllerPort) {
+        match port {
+            ControllerPort::P1 => self.first_port &= !key.bits(),
+            ControllerPort::P2 => self.second_port &= !key.bits(),
+        }
     }
 }

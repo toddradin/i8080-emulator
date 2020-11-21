@@ -3,38 +3,28 @@ extern crate bitflags;
 extern crate i8080;
 extern crate sdl2;
 use crate::display::Display;
-use crate::io::{Key, SpaceInvadersIO};
+use crate::io::{ControllerPort, Key, SpaceInvadersIO};
+use crate::memory::SpaceInvadersMemory;
 
 mod display;
 mod io;
+mod memory;
 
 use i8080::cpu::Cpu;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use std::fs::File;
-use std::io::Read;
 
-fn load_roms(buffer: &mut [u8]) -> std::io::Result<()> {
-    let mut addr = 0x00;
-    for f in ['h', 'g', 'f', 'e'].iter() {
-        let mut file = File::open(format!("roms/invaders.{}", f))?;
-        file.read(&mut buffer[addr..addr + 0x800])?;
-        addr += 0x800;
-    }
-    Ok(())
-}
-
-fn keycode_to_key(keycode: Keycode) -> Option<Key> {
+fn keycode_to_key(keycode: Keycode) -> Option<(Key, ControllerPort)> {
     let key = match keycode {
-        Keycode::Num0 => Key::CREDIT,
-        Keycode::Num2 => Key::START2P,
-        Keycode::Num1 => Key::START1P,
-        Keycode::W => Key::SHOOT1P,
-        Keycode::A => Key::LEFT1P,
-        Keycode::D => Key::RIGHT1P,
-        Keycode::I => Key::SHOOT2P,
-        Keycode::J => Key::LEFT2P,
-        Keycode::L => Key::RIGHT2P,
+        Keycode::Num0 => (Key::CREDIT, ControllerPort::P1),
+        Keycode::Num2 => (Key::START2P, ControllerPort::P1),
+        Keycode::Num1 => (Key::START1P, ControllerPort::P1),
+        Keycode::W => (Key::SHOOT1P, ControllerPort::P1),
+        Keycode::A => (Key::LEFT1P, ControllerPort::P1),
+        Keycode::D => (Key::RIGHT1P, ControllerPort::P1),
+        Keycode::I => (Key::SHOOT2P, ControllerPort::P2),
+        Keycode::J => (Key::LEFT2P, ControllerPort::P2),
+        Keycode::L => (Key::RIGHT2P, ControllerPort::P2),
         _ => return None,
     };
 
@@ -42,12 +32,9 @@ fn keycode_to_key(keycode: Keycode) -> Option<Key> {
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let cpu = &mut Cpu::new();
+    let memory = SpaceInvadersMemory::new();
     let machine = &mut SpaceInvadersIO::new();
-    match load_roms(&mut cpu.memory) {
-        Ok(_) => (),
-        Err(error) => panic!("Problem opening the file: {:?}", error),
-    }
+    let cpu = &mut Cpu::new(memory);
 
     let sdl_context = sdl2::init().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -72,16 +59,16 @@ fn main() -> Result<(), std::io::Error> {
                     keycode: Some(keycode),
                     ..
                 } => {
-                    if let Some(key) = keycode_to_key(keycode) {
-                        machine.press(key);
+                    if let Some((key, port)) = keycode_to_key(keycode) {
+                        machine.press(key, port);
                     }
                 }
                 Event::KeyUp {
                     keycode: Some(keycode),
                     ..
                 } => {
-                    if let Some(key) = keycode_to_key(keycode) {
-                        machine.release(key);
+                    if let Some((key, port)) = keycode_to_key(keycode) {
+                        machine.release(key, port);
                     }
                 }
                 _ => {}
@@ -92,10 +79,7 @@ fn main() -> Result<(), std::io::Error> {
         // This will be run twice so that the correct number of cycles per
         // frame is reached.
         for _ in 0..2 {
-            let mut cycles_to_run = CYCLES_PER_HALF_FRAME;
-            while cycles_to_run >= 0 {
-                cycles_to_run -= cpu.step(machine) as i32;
-            }
+            cpu.step(machine, CYCLES_PER_HALF_FRAME);
             cpu.interrupt(next_interrupt);
             next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
             display.draw_display_whole(cpu);
