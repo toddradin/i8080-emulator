@@ -3,17 +3,21 @@ use i8080::machine::MachineIO;
 use i8080::memory_bus::MemoryMap;
 
 bitflags! {
-    pub struct Key: u16 {
+    pub struct Key: u8 {
         const CREDIT = 1 << 0;
         const START2P = 1 << 1;
         const START1P = 1 << 2;
-        const SHOOT1P = 1 << 3;
-        const LEFT1P = 1 << 4;
-        const RIGHT1P = 1 << 5;
-        const SHOOT2P = 1 << 6;
-        const LEFT2P = 1 << 7;
-        const RIGHT2P = 1 << 8;
+        const SHOOT1P = 1 << 4;
+        const LEFT1P = 1 << 5;
+        const RIGHT1P = 1 << 6;
+        const SHOOT2P = 1 << 4;
+        const LEFT2P = 1 << 5;
+        const RIGHT2P = 1 << 6;
     }
+}
+pub enum ControllerPort {
+    P1,
+    P2,
 }
 
 pub struct SpaceInvadersIO {
@@ -72,11 +76,17 @@ impl MachineIO for SpaceInvadersIO {
 }
 
 impl SpaceInvadersIO {
-    pub fn press(&mut self, key: Key) {
-        self.first_port |= key.bits() as u8;
+    pub fn press(&mut self, key: Key, port: ControllerPort) {
+        match port {
+            ControllerPort::P1 => self.first_port |= key.bits(),
+            ControllerPort::P2 => self.second_port |= key.bits(),
+        }
     }
 
-    pub fn release(&mut self, key: Key) {
-        self.first_port &= !key.bits() as u8;
+    pub fn release(&mut self, key: Key, port: ControllerPort) {
+        match port {
+            ControllerPort::P1 => self.first_port &= !key.bits(),
+            ControllerPort::P2 => self.second_port &= !key.bits(),
+        }
     }
 }

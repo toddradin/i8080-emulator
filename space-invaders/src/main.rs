@@ -3,7 +3,7 @@ extern crate bitflags;
 extern crate i8080;
 extern crate sdl2;
 use crate::display::Display;
-use crate::io::{Key, SpaceInvadersIO};
+use crate::io::{ControllerPort, Key, SpaceInvadersIO};
 use crate::memory::SpaceInvadersMemory;
 
 mod display;
@@ -14,17 +14,17 @@ use i8080::cpu::Cpu;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
-fn keycode_to_key(keycode: Keycode) -> Option<Key> {
+fn keycode_to_key(keycode: Keycode) -> Option<(Key, ControllerPort)> {
     let key = match keycode {
-        Keycode::Num0 => Key::CREDIT,
-        Keycode::Num2 => Key::START2P,
-        Keycode::Num1 => Key::START1P,
-        Keycode::W => Key::SHOOT1P,
-        Keycode::A => Key::LEFT1P,
-        Keycode::D => Key::RIGHT1P,
-        Keycode::I => Key::SHOOT2P,
-        Keycode::J => Key::LEFT2P,
-        Keycode::L => Key::RIGHT2P,
+        Keycode::Num0 => (Key::CREDIT, ControllerPort::P1),
+        Keycode::Num2 => (Key::START2P, ControllerPort::P1),
+        Keycode::Num1 => (Key::START1P, ControllerPort::P1),
+        Keycode::W => (Key::SHOOT1P, ControllerPort::P1),
+        Keycode::A => (Key::LEFT1P, ControllerPort::P1),
+        Keycode::D => (Key::RIGHT1P, ControllerPort::P1),
+        Keycode::I => (Key::SHOOT2P, ControllerPort::P2),
+        Keycode::J => (Key::LEFT2P, ControllerPort::P2),
+        Keycode::L => (Key::RIGHT2P, ControllerPort::P2),
         _ => return None,
     };
 
@@ -59,16 +59,16 @@ fn main() -> Result<(), std::io::Error> {
                     keycode: Some(keycode),
                     ..
                 } => {
-                    if let Some(key) = keycode_to_key(keycode) {
-                        machine.press(key);
+                    if let Some((key, port)) = keycode_to_key(keycode) {
+                        machine.press(key, port);
                     }
                 }
                 Event::KeyUp {
                     keycode: Some(keycode),
                     ..
                 } => {
-                    if let Some(key) = keycode_to_key(keycode) {
-                        machine.release(key);
+                    if let Some((key, port)) = keycode_to_key(keycode) {
+                        machine.release(key, port);
                     }
                 }
                 _ => {}
