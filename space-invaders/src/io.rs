@@ -26,6 +26,10 @@ pub struct SpaceInvadersIO {
     shift0: u8,
     shift1: u8,
     shift_offset: u8,
+    pub out_p3: u8,
+    pub prev_out_p3: u8,
+    pub out_p5: u8,
+    pub prev_out_p5: u8,
 }
 
 impl SpaceInvadersIO {
@@ -36,6 +40,10 @@ impl SpaceInvadersIO {
             shift0: 0,
             shift1: 0,
             shift_offset: 0,
+            out_p3: 0,
+            prev_out_p3: 0,
+            out_p5: 0,
+            prev_out_p5: 0,
         }
     }
 }
@@ -59,6 +67,12 @@ impl MachineIO for SpaceInvadersIO {
             2 => self.shift_offset = val & 0x7,
             3 => {
                 // TODO sound
+                self.out_p3 = val;
+                if self.out_p3 != self.prev_out_p3 {
+                    //self.prev_out_p3 = self.out_p3;
+                    //println!("sound plays");
+                }
+
                 ()
             }
             4 => {
@@ -66,6 +80,12 @@ impl MachineIO for SpaceInvadersIO {
                 self.shift1 = val;
             }
             5 => {
+
+                self.out_p5 = val;
+                if self.out_p5 != self.prev_out_p5 {
+                    //self.prev_out_p5 = self.out_p5;
+                }
+
                 // TODO sound
                 ()
             }
