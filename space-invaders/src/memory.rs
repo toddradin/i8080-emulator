@@ -17,34 +17,32 @@ pub const VIDEO_RAM_SIZE: usize = VIDEO_RAM_END - VIDEO_RAM_BEGIN + 1;
 
 pub const RAM_MIRROR_BEGIN: usize = 0x4000;
 pub const RAM_MIRROR_END: usize = 0xFFFF;
-pub const RAM_MIRROR_SIZE: usize = RAM_MIRROR_END - RAM_MIRROR_BEGIN + 1;
 
 pub struct SpaceInvadersMemory {
     rom: [u8; ROM_SIZE],
     working_ram: [u8; WORKING_RAM_SIZE],
     video_ram: [u8; VIDEO_RAM_SIZE],
-    ram_mirror: [u8; RAM_MIRROR_SIZE],
 }
 
 impl SpaceInvadersMemory {
     pub fn new() -> Self {
-        let mut buffer = [0; ROM_SIZE];
-        SpaceInvadersMemory::load_rom(&mut buffer);
-        Self {
+        let buffer = [0; ROM_SIZE];
+        let mut memory = Self {
             rom: buffer,
             working_ram: [0; WORKING_RAM_SIZE],
             video_ram: [0; VIDEO_RAM_SIZE],
-            ram_mirror: [0; RAM_MIRROR_SIZE],
-        }
+        };
+        memory.load_rom();
+        memory
     }
 }
 
 impl MemoryMap for SpaceInvadersMemory {
-    fn load_rom(buffer: &mut [u8]) {
+    fn load_rom(&mut self) {
         let mut addr = 0x00;
         for f in ['h', 'g', 'f', 'e'].iter() {
             let mut file = File::open(format!("roms/invaders.{}", f)).unwrap();
-            file.read(&mut buffer[addr..addr + 0x800]).unwrap();
+            file.read(&mut self.rom[addr..addr + 0x800]).unwrap();
             addr += 0x800;
         }
     }
