@@ -83,7 +83,6 @@ fn main() -> Result<(), std::io::Error> {
             cpu.interrupt(next_interrupt);
             next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
         }
-
         display.draw_display_whole(cpu);
     }
 
