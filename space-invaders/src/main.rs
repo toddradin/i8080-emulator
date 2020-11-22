@@ -82,8 +82,8 @@ fn main() -> Result<(), std::io::Error> {
             cpu.step(machine, CYCLES_PER_HALF_FRAME);
             cpu.interrupt(next_interrupt);
             next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
-            display.draw_display_whole(cpu);
         }
+        display.draw_display_whole(cpu);
     }
 
     Ok(())
