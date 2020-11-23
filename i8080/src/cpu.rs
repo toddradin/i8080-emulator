@@ -18,6 +18,7 @@ where
     pub memory: M,
     pub condition_codes: ConditionCodes,
     pub interrupts_enabled: bool,
+    pub is_halted: bool,
 }
 
 impl<M> Cpu<M>
@@ -32,6 +33,7 @@ where
             memory: memory_map,
             condition_codes: Default::default(),
             interrupts_enabled: false,
+            is_halted: false,
         }
     }
 
@@ -782,7 +784,8 @@ where
 
     // Halt instruction
     // Emulator 101 says it may not be necessary to emulate and suggests exiting if encountered
-    fn hlt(&self) {
+    fn hlt(&mut self) {
+        self.is_halted = true;
         process::exit(1);
     }
 

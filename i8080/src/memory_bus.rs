@@ -1,5 +1,5 @@
 pub trait MemoryMap {
-    fn load_rom(buffer: &mut [u8]);
+    fn load_rom(&mut self);
 
     fn read(&mut self, addr: u16) -> u8;
 

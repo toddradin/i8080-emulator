@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::fs::File;
+use std::io::{self, Read, Write};
 
 use i8080::cpu::Cpu;
 use i8080::instruction::Instruction;
@@ -8,21 +9,28 @@ use i8080::memory_bus::MemoryMap;
 #[derive(Clone)]
 struct TestMemory {
     pub memory: [u8; 0x10000],
+    rom_path: &'static str,
 }
 
 impl TestMemory {
-    fn new() -> Self {
-        let mut buffer = [0; 0x10000];
-        TestMemory::load_rom(&mut buffer);
-        Self { memory: buffer }
+    fn new(path: &'static str) -> Self {
+        let buffer = [0; 0x10000];
+        let mut memory = Self {
+            memory: buffer,
+            rom_path: path,
+        };
+        memory.load_rom();
+        memory
     }
 }
 
 impl MemoryMap for TestMemory {
-    fn load_rom(buffer: &mut [u8]) {
+    fn load_rom(&mut self) {
         let offset = 0x100;
-        let rom = include_bytes!("../test-roms/8080EXM.COM");
-        buffer[offset as usize..(rom.len() + offset as usize)].copy_from_slice(rom);
+        let mut file = File::open(self.rom_path).unwrap();
+        let mut r = Vec::new();
+        file.read_to_end(&mut r).unwrap();
+        self.memory[offset as usize..(r.len() + offset as usize)].copy_from_slice(&r);
     }
 
     fn read(&mut self, addr: u16) -> u8 {
@@ -47,8 +55,7 @@ impl MachineIO for TestMachine {
 
     fn machine_out<M: MemoryMap>(&mut self, cpu: &mut Cpu<M>, port: u8, _: u8) {
         if port == 0 {
-            println!("\n\nSignal to terminate the program has been received. Exiting.");
-            std::process::exit(0);
+            cpu.is_halted = true;
         } else if port == 1 {
             if cpu.registers.c == 9 {
                 let mut addr = cpu.registers.get_de() as usize;
@@ -65,8 +72,11 @@ impl MachineIO for TestMachine {
     }
 }
 
-fn main() {
-    let memory = TestMemory::new();
+fn execute_test(path: &'static str) {
+    println!("======================");
+    println!("EXECUTING TEST: {}", path);
+
+    let memory = TestMemory::new(path);
     let mut cpu = Cpu::new(memory);
 
     // The tests begin at 0x100 so advance pc to address
@@ -85,7 +95,7 @@ fn main() {
 
     let debug = false;
 
-    loop {
+    while !cpu.is_halted {
         let instr = Instruction::from(cpu.memory.read_slice(cpu.pc));
 
         if debug {
@@ -99,4 +109,11 @@ fn main() {
 
         cpu.pc = next_pc;
     }
+    println!("\n");
+}
+fn main() {
+    execute_test("test-roms/TST8080.COM");
+    execute_test("test-roms/CPUTEST.COM");
+    execute_test("test-roms/8080PRE.COM");
+    execute_test("test-roms/8080EXM.COM");
 }
