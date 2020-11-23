@@ -13,6 +13,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
+name = "emscripten_main_loop"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5afad28b2fe4187ba9be5ea0172be678a18d89972722987a5487cd385669b682"
+
+[[package]]
 name = "i8080"
 version = "0.1.0"
 
@@ -56,6 +62,7 @@ name = "space-invaders"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "emscripten_main_loop",
  "i8080",
  "sdl2",
 ]

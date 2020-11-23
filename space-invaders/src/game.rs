@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate bitflags;
 extern crate i8080;
 extern crate sdl2;
@@ -102,11 +101,4 @@ impl emscripten_main_loop::MainLoop for Game {
 
         emscripten_main_loop::MainLoopEvent::Continue
     }
-}
-
-fn main() -> Result<(), std::io::Error> {
-    let game = Game::new();
-    emscripten_main_loop::run(game);
-
-    Ok(())
 }
