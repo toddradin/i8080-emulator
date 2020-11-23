@@ -1,0 +1,12 @@
+[package]
+name = "balloon-bombers"
+version = "0.1.0"
+authors = ["toddradin <todd.radin@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sdl2 = "0.34.3"
+bitflags = "1.2"
+i8080 =  { path = "../i8080" }
