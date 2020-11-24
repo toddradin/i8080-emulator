@@ -99,6 +99,7 @@ impl emscripten_main_loop::MainLoop for Game {
             next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
         }
         self.display.draw_display_whole(&mut self.cpu);
+        std::thread::sleep(std::time::Duration::from_millis(15));
 
         emscripten_main_loop::MainLoopEvent::Continue
     }

@@ -15,18 +15,35 @@ pub struct Display {
     canvas: WindowCanvas,
 }
 
+fn find_sdl_gl_driver() -> Option<u32> {
+    for (index, item) in sdl2::render::drivers().enumerate() {
+        if item.name == "opengl" {
+            return Some(index as u32);
+        }
+    }
+    None
+}
+
 impl Display {
     pub fn new(context: sdl2::Sdl) -> Self {
         let video_subsystem = context.video().unwrap();
-        let window = video_subsystem
+        let window = match video_subsystem
             .window("i8080", WIDTH * SCALE_FACTOR, HEIGHT * SCALE_FACTOR)
             .position_centered()
+            .opengl()
+            .build()
+        {
+            Ok(window) => window,
+            Err(err) => panic!("failed to create window: {}", err),
+        };
+
+        let canvas = window
+            .into_canvas()
+            .index(find_sdl_gl_driver().unwrap())
+            .present_vsync()
             .build()
             .unwrap();
-        let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-        canvas.set_draw_color(Color::BLACK);
-        canvas.clear();
-        canvas.present();
+
         Display { canvas: canvas }
     }
 
