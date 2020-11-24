@@ -15,9 +15,6 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::audio::{AudioCallback, AudioSpecDesired, AudioSpecWAV, AudioCVT};
 
-use std::time::Duration;
-use std::thread;
-
 struct Sound {
     data: Vec<u8>,
     volume: f32,
@@ -80,6 +77,54 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut next_interrupt = 0x8;
 
+    //setting up some audio variables before main game loop
+    let mut ufo = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        //audio_subsytem handling here and below referenced from official documentation: 
+        //https://github.com/Rust-SDL2/rust-sdl2/blob/master/examples/audio-wav.rs
+        let wav = AudioSpecWAV::load_wav("./sfx/ufo_long.wav").unwrap();
+        let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
+        let data = cvt.convert(wav.buffer().to_vec());
+        Sound {
+        data: data,
+        volume: 0.20,
+        position: 0,
+    }
+    }).unwrap();
+    let mut ufo_reset = 0; //keeps track if ufo fx needs to be set again
+
+    let mut mainfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        let wav = AudioSpecWAV::load_wav("./sfx/shoot.wav").unwrap();
+        let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
+        let data = cvt.convert(wav.buffer().to_vec());
+        Sound {
+        data: data,
+        volume: 0.20,
+        position: 0,
+    }
+    }).unwrap();
+
+    let mut invadersfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        let wav = AudioSpecWAV::load_wav("./sfx/shoot.wav").unwrap();
+        let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
+        let data = cvt.convert(wav.buffer().to_vec());
+        Sound {
+        data: data,
+        volume: 0.20,
+        position: 0,
+    }
+    }).unwrap();
+
+    let mut explode = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+        let wav = AudioSpecWAV::load_wav("./sfx/shoot.wav").unwrap();
+        let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
+        let data = cvt.convert(wav.buffer().to_vec());
+        Sound {
+        data: data,
+        volume: 0.20,
+        position: 0,
+    }
+    }).unwrap();
+
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -109,174 +154,157 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         //AUDIO
-        if machine.out_p3 != machine.prev_out_p3 {
-            //SHOOT
-            if ((machine.out_p3 & 0x2) != 0) && (!(machine.prev_out_p3 & 0x2) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/shoot.wav").unwrap();
+        //making sure that the UFO sound effect is always set up to be played 
+        if ufo_reset == 0 {
+            ufo = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                let wav = AudioSpecWAV::load_wav("./sfx/ufo_long.wav").unwrap();
+                let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
+                let data = cvt.convert(wav.buffer().to_vec());
+                Sound {
+                data: data,
+                volume: 0.20,
+                position: 0,
+            }
+            }).unwrap();
+            ufo_reset = 1;
 
+        }
+
+        if machine.third_port != machine.prev_third_port {
+            //UFO START
+            if ((machine.third_port & 0x1) != 0) && (!(machine.prev_third_port & 0x1) != 0) {
+                ufo.resume(); //UFO sfx plays until 'UFO STOP' is called below
+            }
+
+            //UFO STOP
+            else if (!(machine.third_port & 0x1) != 0) && (!(machine.prev_third_port & 0x1) != 0) {
+                ufo.pause(); //stops the effect
+                ufo_reset = 0; //flag for resetting the UFO sfx to be played again later
+            }
+                      
+            //SHOOT
+            if ((machine.third_port & 0x2) != 0) && (!(machine.prev_third_port & 0x2) != 0) {
+                mainfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/shoot.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    //let data = wav.buffer().to_vec();
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(16));        
-    
+                mainfx.resume();
             }
 
             //PLAYER DEATH
-            if ((machine.out_p3 & 0x4) != 0) && (!(machine.prev_out_p3 & 0x4) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/explosion.wav").unwrap();
-
+            if ((machine.third_port & 0x4) != 0) && (!(machine.prev_third_port & 0x4) != 0) {
+                mainfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/explosion.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    //let data = wav.buffer().to_vec();;
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(500));
+                mainfx.resume();
             }
 
             //INVADER DEATH
-            if ((machine.out_p3 & 0x8) != 0) && (!(machine.prev_out_p3 & 0x8) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/invaderkilled.wav").unwrap();
-
+            if ((machine.third_port & 0x8) != 0) && (!(machine.prev_third_port & 0x8) != 0) {
+                explode = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/invaderkilled.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    //let data = wav.buffer().to_vec();;
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(16));
+                explode.resume();
             }
-
-            machine.prev_out_p3 = machine.out_p3;
+            machine.prev_third_port = machine.third_port;
         }    
 
-        if machine.out_p5 != machine.prev_out_p5 {
+        if machine.fifth_port != machine.prev_fifth_port {
             //INVADER 1
-            if ((machine.out_p5 & 0x1) != 0) && (!(machine.prev_out_p5 & 0x1) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/fastinvader1.wav").unwrap();
-
+            if ((machine.fifth_port & 0x1) != 0) && (!(machine.prev_fifth_port & 0x1) != 0) {
+                invadersfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/fastinvader4.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    // let data = wav.buffer().to_vec();
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(10));
+                invadersfx.resume();
             }
 
             //INVADER 2
-            if ((machine.out_p5 & 0x2) != 0) && (!(machine.prev_out_p5 & 0x2) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/fastinvader2.wav").unwrap();
-
+            if ((machine.fifth_port & 0x2) != 0) && (!(machine.prev_fifth_port & 0x2) != 0) {
+                invadersfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/fastinvader1.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    // let data = wav.buffer().to_vec();
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(10));
+                invadersfx.resume();
             }
 
             //INVADER 3
-            if ((machine.out_p5 & 0x4) != 0) && (!(machine.prev_out_p5 & 0x4) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/fastinvader3.wav").unwrap();
-
+            if ((machine.fifth_port & 0x4) != 0) && (!(machine.prev_fifth_port & 0x4) != 0) {
+                invadersfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/fastinvader2.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    // let data = wav.buffer().to_vec();
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(10));
+                invadersfx.resume();
             }
 
             //INVADER 4
-            if ((machine.out_p5 & 0x8) != 0) && (!(machine.prev_out_p5 & 0x8) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/fastinvader4.wav").unwrap();
-
+            if ((machine.fifth_port & 0x8) != 0) && (!(machine.prev_fifth_port & 0x8) != 0) {
+                invadersfx = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/fastinvader3.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    // let data = wav.buffer().to_vec();
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(10));
+                invadersfx.resume();
             }
 
-            //TODO: INVADER TEMP
-            if ((machine.out_p5 & 0x10) != 0) && (!(machine.prev_out_p5 & 0x10) != 0) {
-                let audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                    let wav = AudioSpecWAV::load_wav("../sfx/fastinvader4.wav").unwrap();
-
+            //UFO EXPLOSION
+            if ((machine.fifth_port & 0x10) != 0) && (!(machine.prev_fifth_port & 0x10) != 0) {
+                explode = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+                    let wav = AudioSpecWAV::load_wav("./sfx/invaderkilled.wav").unwrap();
                     let cvt = AudioCVT::new(wav.format, wav.channels, wav.freq, spec.format, spec.channels, spec.freq).expect("Could not convert WAV file");
                     let data = cvt.convert(wav.buffer().to_vec());
-
-                    //let data = wav.buffer().to_vec();
-
                     Sound {
                     data: data,
                     volume: 0.20,
                     position: 0,
                 }
                 }).unwrap();
-                audio_device.resume();
-                thread::sleep(Duration::from_millis(10));
+                explode.resume();
             }
-
-            //TODO: missing sound effect 0x10?}
-            machine.prev_out_p5 = machine.out_p5;
+            machine.prev_fifth_port = machine.fifth_port;
         }    
 
         // After every CYCLES_PER_HALF_FRAME, an interrupt should be triggered.
