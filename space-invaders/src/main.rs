@@ -65,7 +65,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut display = Display::new(sdl_context);
 
     let desired_spec = AudioSpecDesired {
-        freq: Some(44100),
+        freq: Some(11025),
         channels: Some(1),
         samples: None
     };
