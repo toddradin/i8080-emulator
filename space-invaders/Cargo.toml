@@ -11,3 +11,4 @@ sdl2 = "0.34.3"
 bitflags = "1.2"
 i8080 =  { path = "../i8080" }
 emscripten_main_loop = "0.1"
+gl = "0.6.0"

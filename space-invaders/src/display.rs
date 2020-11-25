@@ -1,3 +1,4 @@
+extern crate gl;
 use i8080::cpu::Cpu;
 
 use crate::i8080::memory_bus::MemoryMap;
@@ -6,6 +7,7 @@ use crate::memory::SpaceInvadersMemory;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
+use sdl2::video::GLProfile;
 
 const WIDTH: u32 = 224;
 const HEIGHT: u32 = 256;
@@ -17,7 +19,7 @@ pub struct Display {
 
 fn find_sdl_gl_driver() -> Option<u32> {
     for (index, item) in sdl2::render::drivers().enumerate() {
-        if item.name == "opengl" {
+        if item.name.contains("opengl") {
             return Some(index as u32);
         }
     }
@@ -27,22 +29,28 @@ fn find_sdl_gl_driver() -> Option<u32> {
 impl Display {
     pub fn new(context: sdl2::Sdl) -> Self {
         let video_subsystem = context.video().unwrap();
-        let window = match video_subsystem
+        video_subsystem
+            .gl_attr()
+            .set_context_profile(GLProfile::Core);
+        video_subsystem.gl_attr().set_context_version(4, 1);
+        let window = video_subsystem
             .window("i8080", WIDTH * SCALE_FACTOR, HEIGHT * SCALE_FACTOR)
             .position_centered()
             .opengl()
             .build()
-        {
-            Ok(window) => window,
-            Err(err) => panic!("failed to create window: {}", err),
-        };
+            .map_err(|e| e.to_string())
+            .unwrap();
 
         let canvas = window
             .into_canvas()
             .index(find_sdl_gl_driver().unwrap())
             .present_vsync()
             .build()
+            .map_err(|e| e.to_string())
             .unwrap();
+
+        gl::load_with(|name| video_subsystem.gl_get_proc_address(name) as *const _);
+        canvas.window().gl_set_context_to_current().unwrap();
 
         Display { canvas: canvas }
     }

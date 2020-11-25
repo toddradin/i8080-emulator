@@ -13,10 +13,13 @@
                     return __cargo_web.canvas;
                 }
 
-                var canvas = document.createElement( 'canvas' );
-                document.querySelector( 'body' ).appendChild( canvas );
+                var canvas = document.createElement('canvas');
+                // Disable right-click on the canvas
+                canvas.addEventListener('contextmenu', event => event.preventDefault());
+                canvas.setAttribute("id", "canvas");
+                var body = document.querySelector('body')
+                body.insertBefore(canvas, body.firstChild);
                 __cargo_web.canvas = canvas;
-
                 return canvas;
             }
         });

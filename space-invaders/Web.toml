@@ -5,9 +5,9 @@ minimum-version = "0.6.0"
 
 [target.emscripten]
 link-args = [
-  "-sUSE_SDL=2",
-  "-sMIN_WEBGL_VERSION=2",
-  "-sMAX_WEBGL_VERSION=2", 
+  "-s","USE_SDL=2",
+  "-s","MIN_WEBGL_VERSION=2",
+  "-s","MAX_WEBGL_VERSION=2", 
   "--embed-file","roms/invaders.e",
   "--embed-file","roms/invaders.f",
   "--embed-file","roms/invaders.g",
