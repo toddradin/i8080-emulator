@@ -9,6 +9,7 @@ use crate::memory::SpaceInvadersMemory;
 mod display;
 mod io;
 mod memory;
+mod sound;
 
 use i8080::cpu::Cpu;
 use sdl2::event::Event;
