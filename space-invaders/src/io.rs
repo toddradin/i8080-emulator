@@ -105,6 +105,10 @@ impl MachineIO for SpaceInvadersIO {
                 if val & 0x8 != 0 && self.prev_fifth_port & 0x8 == 0 {
                     self.audio.play_invader_4();
                 }
+
+                if val & 0x10 != 0 && self.prev_fifth_port & 0x10 == 0 {
+                    self.audio.play_invader_death();
+                }
                 self.prev_fifth_port = val;
             }
             6 => {}
