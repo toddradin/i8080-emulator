@@ -2,6 +2,8 @@ use i8080::cpu::Cpu;
 use i8080::machine::MachineIO;
 use i8080::memory_bus::MemoryMap;
 
+use crate::sound::AudioMixer;
+
 bitflags! {
     pub struct Key: u8 {
         const CREDIT = 1 << 0;
@@ -23,19 +25,25 @@ pub enum ControllerPort {
 pub struct SpaceInvadersIO {
     first_port: u8,
     second_port: u8,
+    prev_third_port: u8,
+    prev_fifth_port: u8,
     shift0: u8,
     shift1: u8,
     shift_offset: u8,
+    audio: AudioMixer,
 }
 
 impl SpaceInvadersIO {
-    pub fn new() -> SpaceInvadersIO {
+    pub fn new() -> Self {
         SpaceInvadersIO {
             first_port: 1,
             second_port: 0,
+            prev_third_port: 0,
+            prev_fifth_port: 0,
             shift0: 0,
             shift1: 0,
             shift_offset: 0,
+            audio: AudioMixer::new(),
         }
     }
 }
@@ -58,16 +66,50 @@ impl MachineIO for SpaceInvadersIO {
         match port {
             2 => self.shift_offset = val & 0x7,
             3 => {
-                // TODO sound
-                ()
+                if val & 0x1 != 0 && self.prev_third_port & 0x1 == 0 {
+                    self.audio.play_ufo();
+                } else if val & 0x1 == 0 && self.prev_third_port & 0x1 != 0 {
+                    self.audio.stop_ufo();
+                }
+
+                if val & 0x2 != 0 && self.prev_third_port & 0x2 == 0 {
+                    self.audio.play_shoot();
+                }
+
+                if val & 0x4 != 0 && self.prev_third_port & 0x4 == 0 {
+                    self.audio.play_player_death();
+                }
+
+                if val & 0x8 != 0 && self.prev_third_port & 0x8 == 0 {
+                    self.audio.play_invader_death();
+                }
+                self.prev_third_port = val;
             }
             4 => {
                 self.shift0 = self.shift1;
                 self.shift1 = val;
             }
             5 => {
-                // TODO sound
-                ()
+                if val & 0x1 != 0 && self.prev_fifth_port & 0x1 == 0 {
+                    self.audio.play_invader_1();
+                }
+
+                if val & 0x2 != 0 && self.prev_fifth_port & 0x2 == 0 {
+                    self.audio.play_invader_2();
+                }
+
+                if val & 0x4 != 0 && self.prev_fifth_port & 0x4 == 0 {
+                    self.audio.play_invader_3();
+                }
+
+                if val & 0x8 != 0 && self.prev_fifth_port & 0x8 == 0 {
+                    self.audio.play_invader_4();
+                }
+
+                if val & 0x10 != 0 && self.prev_fifth_port & 0x10 == 0 {
+                    self.audio.play_invader_death();
+                }
+                self.prev_fifth_port = val;
             }
             6 => {}
             _ => panic!("Invalid port {:?} for OUT", port),
