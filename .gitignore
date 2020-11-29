@@ -1,2 +1,4 @@
 target/
+space-invaders/roms/
+space-invaders/sounds/
 .DS_Store
