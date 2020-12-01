@@ -55,6 +55,7 @@ where
 
             run_cycles -= cycles as i32;
         }
+        std::thread::sleep(std::time::Duration::from_millis(7));
     }
 
     pub fn execute<IO: MachineIO>(
