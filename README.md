@@ -97,18 +97,27 @@ cargo run --release
 from the space-invaders directory to begin emulation of Space Invaders.
 
 ## Controls
+### Game
 Key | Action
 --- | ---
 0 | Insert a coin
 1 | Start a game in one-player mode
 2 | Start a game in two-player mode
+ESC | Exit the game
+
+### Player 1
+Key | Action
+--- | ---
 A | Move player one left
 D | Move player one right
 W | Player one shoot
+
+### Player 2
+Key | Action
+--- | ---
 J | Move player two left
 L | Move player two right
 I | Player two shoot
-ESC | Exit the game
 
 
 # Resources
