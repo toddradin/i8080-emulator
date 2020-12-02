@@ -41,13 +41,6 @@ fn main() -> Result<(), std::io::Error> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut display = Display::new(sdl_context);
 
-    const HERTZ: i32 = 2_000_000;
-    const FPS: u8 = 60;
-    const CYCLES_PER_FRAME: i32 = HERTZ / FPS as i32;
-    const CYCLES_PER_HALF_FRAME: i32 = CYCLES_PER_FRAME / 2;
-
-    let mut next_interrupt = 0x8;
-
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -76,14 +69,9 @@ fn main() -> Result<(), std::io::Error> {
             }
         }
 
-        // After every CYCLES_PER_HALF_FRAME, an interrupt should be triggered.
-        // This will be run twice so that the correct number of cycles per
-        // frame is reached.
-        for _ in 0..2 {
-            cpu.step(machine, CYCLES_PER_HALF_FRAME);
-            cpu.interrupt(next_interrupt);
-            next_interrupt = if next_interrupt == 0x08 { 0x10 } else { 0x08 };
-        }
+        // Each step runs all the instructions in order to reach the required
+        // cycles per frame.
+        cpu.step(machine);
         display.draw_display_whole(cpu);
     }
 
