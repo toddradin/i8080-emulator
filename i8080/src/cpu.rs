@@ -18,6 +18,7 @@ where
     pub memory: M,
     pub condition_codes: ConditionCodes,
     pub interrupts_enabled: bool,
+    pub next_interrupt_val: u16,
     pub is_halted: bool,
 }
 
@@ -33,29 +34,43 @@ where
             memory: memory_map,
             condition_codes: Default::default(),
             interrupts_enabled: false,
+            next_interrupt_val: 0x08,
             is_halted: false,
         }
     }
 
-    pub fn step<IO: MachineIO>(&mut self, machine: &mut IO, mut run_cycles: i32) {
+    pub fn step<IO: MachineIO>(&mut self, machine: &mut IO) {
         let debug = false;
+        const HERTZ: i32 = 2_000_000;
+        const FPS: u8 = 60;
+        const CYCLES_PER_FRAME: i32 = HERTZ / FPS as i32;
+        const CYCLES_PER_HALF_FRAME: i32 = CYCLES_PER_FRAME / 2;
 
-        while run_cycles >= 0 {
-            let instr = Instruction::from(self.memory.read_slice(self.pc));
-            let (next_pc, cycles) = self.execute(&instr, machine);
-            self.pc = next_pc;
+        for _ in 0..2 {
+            let mut cycles_complete = 0;
+            while cycles_complete <= CYCLES_PER_HALF_FRAME {
+                let instr = Instruction::from(self.memory.read_slice(self.pc));
+                let (next_pc, cycles) = self.execute(&instr, machine);
+                self.pc = next_pc;
 
-            if debug {
-                println!("{:?}", instr);
-                println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
-                println!("cycles: {}", cycles);
-                println!("{:#x?}", self.condition_codes);
-                println!("{:#x?}\n", self.registers);
+                if debug {
+                    println!("{:?}", instr);
+                    println! {"pc: {:#x?}, sp: {:#x?},", self.pc, self.sp};
+                    println!("cycles: {}", cycles);
+                    println!("{:#x?}", self.condition_codes);
+                    println!("{:#x?}\n", self.registers);
+                }
+
+                cycles_complete += cycles as i32;
             }
-
-            run_cycles -= cycles as i32;
+            self.interrupt(self.next_interrupt_val);
+            self.next_interrupt_val = if self.next_interrupt_val == 0x08 {
+                0x10
+            } else {
+                0x08
+            };
+            std::thread::sleep(std::time::Duration::from_millis(8));
         }
-        std::thread::sleep(std::time::Duration::from_millis(7));
     }
 
     pub fn execute<IO: MachineIO>(
@@ -1390,7 +1405,7 @@ mod tests {
     }
 
     impl MemoryMap for MockMemory {
-        fn load_rom(_: &mut [u8]) {}
+        fn load_rom(&mut self) {}
 
         fn read(&mut self, addr: u16) -> u8 {
             self.memory[addr as usize]
